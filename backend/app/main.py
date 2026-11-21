@@ -1,11 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database tables on startup
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="Decidr API",
     description="Meeting-to-Execution and Decision Impact Platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
