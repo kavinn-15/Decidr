@@ -67,6 +67,13 @@ def test_cors_origins_parsing():
     assert s.CORS_ORIGINS == ["https://decidr.vercel.app", "http://localhost:3000"]
 
 
+def test_cors_origins_includes_production_frontend():
+    """Validates that default CORS_ORIGINS permits the Vercel production frontend."""
+    s = Settings()
+    assert "https://decidr-pi.vercel.app" in s.CORS_ORIGINS
+    assert "https://decidr.vercel.app" in s.CORS_ORIGINS
+
+
 def test_postgres_engine_args_ssl_and_pool():
     """Validates connection pool and SSL parameters for remote PostgreSQL hosts."""
     url = "postgresql+psycopg2://user:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres"

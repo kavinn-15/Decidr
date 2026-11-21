@@ -26,7 +26,7 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "1440"
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://decidr-pi.vercel.app,https://decidr.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
       - key: LLM_PROVIDER
         value: gemini
       - key: LLM_MODE

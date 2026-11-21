@@ -22,6 +22,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { isAuthenticated, getUser, AuthUser } from "@/lib/auth";
+import { buildApiUrl } from "@/lib/config";
 
 export default function LandingPage() {
   const [authedUser, setAuthedUser] = useState<AuthUser | null>(null);
@@ -580,7 +581,7 @@ export default function LandingPage() {
               <li><a href="#how-it-works" className="hover:text-cyan-400 transition-colors">Architecture Overview</a></li>
               <li><a href="#security" className="hover:text-cyan-400 transition-colors">Security Invariants</a></li>
               <li><Link href="/audit" className="hover:text-cyan-400 transition-colors">Audit Trail</Link></li>
-              <li><a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">FastAPI Swagger Docs</a></li>
+              <li><a href={buildApiUrl("/docs")} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">FastAPI Swagger Docs</a></li>
             </ul>
           </div>
 

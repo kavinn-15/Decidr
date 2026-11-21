@@ -1,6 +1,21 @@
 import { getAuthHeaders } from "@/lib/auth";
+import {
+  getApiBaseUrl,
+  buildApiUrl,
+  PRODUCTION_API_URL,
+  LOCAL_API_URL,
+  normalizeApiBaseUrl,
+} from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export {
+  getApiBaseUrl,
+  buildApiUrl,
+  PRODUCTION_API_URL,
+  LOCAL_API_URL,
+  normalizeApiBaseUrl,
+};
+
+export const API_BASE = getApiBaseUrl();
 
 export interface HealthResponse {
   status: string;
@@ -141,7 +156,7 @@ export interface ReviewQueueResponse {
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
-  const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+  const res = await fetch(buildApiUrl("/health"), { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch health status: ${res.statusText}`);
   }
@@ -149,9 +164,9 @@ export async function fetchHealth(): Promise<HealthResponse> {
 }
 
 export async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = buildApiUrl(endpoint);
   const authHeaders = typeof window !== "undefined" ? getAuthHeaders() : {};
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -359,7 +374,7 @@ export interface UnmappedSpeakerItem {
 
 export async function uploadMeeting(formData: FormData): Promise<MeetingSummary> {
   const authHeaders = typeof window !== "undefined" ? getAuthHeaders() : {};
-  const res = await fetch(`${API_BASE}/meetings`, {
+  const res = await fetch(buildApiUrl("/meetings"), {
     method: "POST",
     headers: {
       ...authHeaders,
@@ -455,7 +470,7 @@ export function getAuditExportUrl(params?: {
   if (params?.actor) q.set("actor", params.actor);
   if (params?.action) q.set("action", params.action);
   if (params?.entity_type) q.set("entity_type", params.entity_type);
-  return `${API_BASE}/audit/export?${q.toString()}`;
+  return buildApiUrl(`/audit/export?${q.toString()}`);
 }
 
 export interface DecisionPremiseItem {
@@ -968,13 +983,13 @@ export async function fetchEvalReport(heldout: boolean = false): Promise<EvalRep
 }
 
 export async function fetchEvalMarkdown(): Promise<string> {
-  const res = await fetch(`${API_BASE}/eval/report/markdown`);
+  const res = await fetch(buildApiUrl("/eval/report/markdown"));
   if (!res.ok) throw new Error("Failed to fetch evaluation markdown report");
   return res.text();
 }
 
 export async function fetchEvalCsv(): Promise<string> {
-  const res = await fetch(`${API_BASE}/eval/report/csv`);
+  const res = await fetch(buildApiUrl("/eval/report/csv"));
   if (!res.ok) throw new Error("Failed to fetch evaluation CSV report");
   return res.text();
 }
