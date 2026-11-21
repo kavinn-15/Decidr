@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: str = "decidr@example.com"
+    RESEND_API_KEY: Optional[str] = None
+    SLACK_WEBHOOK_URL: Optional[str] = None
+    TIMEZONE: str = "UTC"
 
     DEMO_MODE: bool = True
 

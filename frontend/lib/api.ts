@@ -739,4 +739,129 @@ export async function fetchAlertRepairPlan(alertId: number): Promise<Proposal> {
   return apiRequest<Proposal>(`/alerts/${alertId}/repair-plan`);
 }
 
+export interface PersonSummary {
+  id: number;
+  name: string;
+  email: string;
+  tracker_id: string;
+  slack_id?: string | null;
+}
+
+export interface MyWeekTask {
+  id: number;
+  title: string;
+  due_date?: string | null;
+  status: string;
+  estimate_hours?: number | null;
+  provisional: boolean;
+  at_risk: boolean;
+  needs_owner: boolean;
+  tracker_ref?: string | null;
+  tracker_url?: string | null;
+}
+
+export interface MyWeekDay {
+  day_name: string;
+  date: string;
+  is_today: boolean;
+  tasks: MyWeekTask[];
+}
+
+export interface ShakyBrokenWorkItem {
+  task_id: number;
+  task_title: string;
+  owner_name: string;
+  owner_id: number;
+  status: string;
+  due_date?: string | null;
+  estimate_hours?: number | null;
+  provisional: boolean;
+  decision_id: number;
+  decision_text: string;
+  premise_id: number;
+  premise_text: string;
+  premise_status: string;
+  reason: string;
+}
+
+export interface DigestResponse {
+  person_id: number;
+  person_name: string;
+  person_email: string;
+  as_of: string;
+  sections: {
+    due_this_week: MyWeekTask[];
+    overdue: MyWeekTask[];
+    decisions_affecting_you: Array<{
+      id: number;
+      text: string;
+      status: string;
+      scope_project: string;
+      scope_region?: string | null;
+    }>;
+    alerts_needing_input: Array<{
+      id: number;
+      kind: string;
+      verdict: string;
+      explanation?: string | null;
+      decision_id?: number | null;
+    }>;
+    work_resting_on_broken_or_shaky_premises: ShakyBrokenWorkItem[];
+  };
+  html: string;
+  text: string;
+}
+
+export interface MyWeekResponse {
+  person: PersonSummary;
+  as_of: string;
+  start_of_week: string;
+  end_of_week: string;
+  days: MyWeekDay[];
+  overdue: MyWeekTask[];
+  shaky_broken: ShakyBrokenWorkItem[];
+  digest_preview: DigestResponse;
+}
+
+export interface OutboxItem {
+  id: number;
+  channel: string;
+  to_addr: string;
+  subject?: string | null;
+  body: string;
+  created_at?: string | null;
+  sent: boolean;
+}
+
+export async function fetchPeople(): Promise<PersonSummary[]> {
+  return apiRequest<PersonSummary[]>("/people");
+}
+
+export async function fetchMyWeek(personId: number, asOf?: string): Promise<MyWeekResponse> {
+  const url = asOf ? `/my-week/${personId}?as_of=${asOf}` : `/my-week/${personId}`;
+  return apiRequest<MyWeekResponse>(url);
+}
+
+export async function fetchDigest(personId: number, asOf?: string): Promise<DigestResponse> {
+  const url = asOf ? `/digest/${personId}?as_of=${asOf}` : `/digest/${personId}`;
+  return apiRequest<DigestResponse>(url);
+}
+
+export async function fetchOutbox(channel?: string, limit: number = 50): Promise<OutboxItem[]> {
+  const q = new URLSearchParams();
+  if (channel) q.append("channel", channel);
+  q.append("limit", limit.toString());
+  return apiRequest<OutboxItem[]>(`/outbox?${q.toString()}`);
+}
+
+export async function triggerRunReminders(now?: string): Promise<any> {
+  const q = now ? `?now=${encodeURIComponent(now)}` : "";
+  return apiRequest(`/admin/run-reminders${q}`, { method: "POST" });
+}
+
+export async function triggerRunDigest(asOf?: string): Promise<any> {
+  const q = asOf ? `?as_of=${asOf}` : "";
+  return apiRequest(`/admin/run-digest${q}`, { method: "POST" });
+}
+
 

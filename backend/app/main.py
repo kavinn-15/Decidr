@@ -14,7 +14,10 @@ from app.api.routes.audit import router as audit_router
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.alerts import router as alerts_router
 from app.api.routes.proposals import router as proposals_router
+from app.api.routes.reminders_digest import router as reminders_digest_router
 from app.services.premise_watch import run_expiry
+from app.services.reminders import run_reminders
+from app.services.digest import generate_and_schedule_weekly_digests
 
 
 scheduler = BackgroundScheduler()
@@ -25,12 +28,24 @@ def _scheduled_expiry_job():
         run_expiry(db, actor="apscheduler_daily")
 
 
+def _scheduled_reminders_job():
+    with SessionLocal() as db:
+        run_reminders(db)
+
+
+def _scheduled_digest_job():
+    with SessionLocal() as db:
+        generate_and_schedule_weekly_digests(db)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize database tables on startup
     init_db()
-    # Start APScheduler for daily premise expiry check
+    # Start APScheduler jobs
     scheduler.add_job(_scheduled_expiry_job, "cron", hour=0, minute=0, id="daily_premise_expiry", replace_existing=True)
+    scheduler.add_job(_scheduled_reminders_job, "interval", minutes=15, id="interval_reminders_15m", replace_existing=True)
+    scheduler.add_job(_scheduled_digest_job, "cron", day_of_week="mon", hour=9, minute=0, id="weekly_digest_mon_9am", replace_existing=True)
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)
@@ -59,6 +74,7 @@ app.include_router(audit_router)
 app.include_router(decisions_router)
 app.include_router(alerts_router)
 app.include_router(proposals_router)
+app.include_router(reminders_digest_router)
 
 
 @app.get("/health")

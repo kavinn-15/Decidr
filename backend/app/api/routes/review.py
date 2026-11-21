@@ -664,6 +664,14 @@ def approve_action(
     # Run the executor so a real ticket appears
     exec_res = execute_proposal(proposal.id, actor=payload.actor, db=db)
 
+    # When a task with a due date is created, create reminders (Task 14)
+    if task.due_date:
+        from app.services.reminders import create_task_reminders
+        try:
+            create_task_reminders(db, task)
+        except Exception as e:
+            logger.warning(f"Failed to create reminders for task {task.id}: {e}")
+
     # Log audit entry
     log(
         actor=payload.actor,

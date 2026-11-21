@@ -214,7 +214,7 @@ def _execute_single_action(
         paused_ids = []
         reason = payload.get("reason") or payload.get("pause_reason", "Proposal executed: paused reminders")
         for r in reminders:
-            r.state = ReminderState.cancelled
+            r.state = ReminderState.paused
             r.pause_reason = reason
             paused_ids.append(r.id)
         return {"task_id": action.target_id, "paused_reminder_ids": paused_ids}

@@ -32,6 +32,14 @@ from app.services.repair import (
     generate_repair_plan,
     make_idempotency_key,
 )
+from app.services.reminders import (
+    create_task_reminders,
+    run_reminders,
+)
+from app.services.digest import (
+    build_digest,
+    generate_and_schedule_weekly_digests,
+)
 
 __all__ = [
     "log",
@@ -55,4 +63,8 @@ __all__ = [
     "calculate_blast_radius",
     "generate_repair_plan",
     "make_idempotency_key",
+    "create_task_reminders",
+    "run_reminders",
+    "build_digest",
+    "generate_and_schedule_weekly_digests",
 ]

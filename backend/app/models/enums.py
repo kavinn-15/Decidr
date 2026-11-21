@@ -100,6 +100,7 @@ class ReminderState(str, Enum):
     sent = "sent"
     paused = "paused"
     skipped = "skipped"
+    cancelled = "cancelled"
 
 
 class ReminderChannel(str, Enum):

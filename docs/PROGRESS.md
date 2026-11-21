@@ -497,232 +497,6 @@ npm --prefix frontend run build
 ### Open Issues / Deferred
 - None from Task 12.
 
----
-
-## Task 13: Rule-Based Repair Service & Interactive Plan Review UI
-### What Was Built
-- **Rule-Based Repair Generation Engine (`backend/app/services/repair.py`)**:
-  - `generate_repair_plan(db, alert_id, actor="system", suggest_replacements=True)`:
-    - **Trigger & Flow**: When a reviewer confirms a Premise Break alert, the premise becomes `status=broken`, an append-only audit row is logged, the blast radius is computed, and a repair plan (`ChangeProposal` in state `draft`) is generated.
-    - **Rule-Based Plain Code Generation (Invariant 5)**:
-      1. For each affected task with a tracker ticket (`task.tracker_ref`), a `comment_task` action is generated with text stating the broken premise, new evidence quote, speaker, and meeting date.
-      2. `mark_decision_at_risk` action for each affected decision.
-      3. `pause_reminders` action for each affected task.
-      4. `reopen_task` action for each affected task marked `done`.
-      5. The LLM may ONLY draft optional `create_task` suggestions for replacement work (title and description); code adds them as draft actions with owner and deadline null and flags them.
-    - **Idempotency Key Formulation (Invariant 3)**:
-      - Every action strictly computes `idempotency_key = hash(alert_id, action_type, target_id)` using SHA-256.
-    - **Human Review Requirement (Invariant 2)**:
-      - The proposal is created in state `draft`, strictly guaranteeing zero external writes until human approval.
-    - **Audit Log Trail (Invariant 7)**:
-      - Logs creation and action states in `audit_log`.
-
-- **Proposals & Approval REST Endpoints (`backend/app/api/routes/proposals.py`)**:
-  - `GET /proposals/{id}`: Returns proposal metadata along with every action, its target (`target_type`, `target_id`, `target_name`), state, idempotency key, and the exact planned payload that will be sent.
-  - `POST /proposals/{id}/approve`:
-    - Allows partial approval via `action_ids` (and optional edited payloads).
-    - Selected actions become `approved`, non-selected actions become `rejected`.
-    - Proposal transitions to `approved` and is passed to `execute_proposal(proposal.id, actor=actor)`.
-    - Only approved actions are executed; retrying skips already executed actions without duplicate tracker writes.
-  - `POST /proposals/{id}/reject`:
-    - Sets proposal and all non-executed actions to `rejected`.
-    - Zero external tracker calls are made (Invariant 2).
-  - `GET /proposals/{id}/preview` and `POST /proposals/{id}/preview`:
-    - Dry-run preview endpoints returning the exact planned outbound payloads.
-
-- **Alert & Review Integration (`backend/app/api/routes/alerts.py`, `backend/app/api/routes/review.py`)**:
-  - `POST /review/alerts/{id}/confirm`: Breaks premise, logs audit row, automatically generates repair plan, links `alert.proposal_id`, and returns `{"status": "confirmed", "alert_id": id, "proposal_id": proposal_id}`.
-  - `POST /alerts/{id}/repair-plan` and `GET /alerts/{id}/repair-plan`: REST endpoints to fetch or generate repair plans on demand.
-  - Mounted `proposals_router` in `backend/app/main.py`.
-
-- **Frontend Review Repair Plan Interactive UI (`frontend/app/review/page.tsx`)**:
-  - Premise Break card: Displays "Confirm Break" when open; once confirmed, displays "Review Repair Plan" with wrench icon.
-  - "Review Repair Plan" Panel / Modal:
-    - Lists each action with target badge, action type badge, idempotency key, and state.
-    - Per-action checkbox for selective/partial approval.
-    - Per-action edit box allowing the reviewer to customize comment text, risk reasons, pause reasons, or replacement task details.
-    - "Preview (dry run)" toggle switch: Instantly previews exact outbound tracker payloads without making external calls.
-    - "Approve selected" button (triggers partial or full execution).
-    - "Reject plan" button (rejects with 0 external calls).
-    - Post-execution results: Displays confirmed timestamps and direct clickable links to the tickets in the tracker (`/mock-tracker` or external URLs).
-
-- **Unit & Integration Safety Proofs (`backend/tests/test_repair.py`)**:
-  - `test_gold_repair_actions_generated_for_p1_break`: Gold repair actions are generated for P1 break (mark_decision_at_risk for D1, comment_task for T1 & T2 citing broken premise, quote, speaker Sam, date, pause_reminders for affected tasks; no comments for T3/T4 lacking tracker tickets; all idempotency keys match hash formula; 0 tracker calls in draft).
-  - `test_reject_plan_zero_tracker_calls`: Rejecting plan produces 0 comments/issues on tracker tickets.
-  - `test_approve_twice_no_duplicate_comments`: Approving twice adds comment once and skips on second execution (0 duplicate comments).
-  - `test_partial_approval_executes_only_selected_actions`: Approving T1 and D1 executes only T1 and D1; T2 remains unexecuted with 0 comments.
-  - `test_preview_payload_equals_executed_payload`: Verifies exact payload match between dry-run preview and actual executed comment/action.
-  - `test_reopen_task_for_done_tasks`: Affected tasks marked `done` generate `reopen_task` actions with proper idempotency keys, transitioning back to `open` upon approval.
-  - Full backend suite passes: **78/78 tests passing**.
-  - Production frontend build passes: **7/7 routes prerendered without errors**.
-
-### How to Run
-```bash
-# Run repair service tests
-.venv\Scripts\pytest.exe backend\tests\test_repair.py -v
-
-# Run full backend test suite
-.venv\Scripts\pytest.exe backend\tests -v
-
-# Run frontend production build
-npm --prefix frontend run build
-```
-
-### Assumptions Made
-- In `repair.py`, if an affected task does not have a `tracker_ref`, `comment_task` is skipped for that task to prevent external tracker failures.
-- In `proposals.py`, dry-run mode returns exact planned payloads matching `_build_action_payload` used in live execution.
-
-### Open Issues / Deferred
-- None from Task 13.
-
-
----
-
-## Task 12: Blast Radius Traversal Engine & /affected Screen
-### What Was Built
-- **Deterministic Blast Radius Traversal Engine (`backend/app/services/blast_radius.py`)**:
-  - `calculate_blast_radius(db, alert_id=None, premise_id=None, decision_id=None)`:
-    - **100% Plain Code Traversal (Invariant 5)**: Zero LLM calls are used for graph traversal, chain generation, reason generation, or metrics.
-    - **Confirmed Links Only (Invariant 4)**: Walks only confirmed links:
-      `Premise` -> `Decision` (premise's underlying decision) -> `Decisions` connected transitively via confirmed `depends_on` links -> `Tasks` connected via confirmed `implements` links.
-    - **Node and Edge Chain Tracking**: Returns exact step-by-step breadcrumb chains (`[P1] -> [D1] -> [T1]`) with explicit depth calculations (Depth 1 for immediate decision/tasks, Depth 2+ for transitively dependent decisions/tasks).
-    - **Templated Code-Generated Reasons**: Generates detailed deterministic explanations without an LLM:
-      e.g., `"Sam (M2, Nov 9) says Provider A supports only T+2 > undermines premise P1 > P1 supports D1 > D1 justifies T1"`.
-    - **Triage & Partitioning**:
-      1. **Affected Tasks & Decisions**: Grouped with depth, chain breadcrumbs, and exact reason.
-      2. **Unaffected Tasks**: Tasks within the same project that are NOT in the affected set, paired with a deterministic code-generated reason:
-         - Scope disjointness using `scope_overlap(task.scope, affected.scope)` (e.g. `"scope differs: Europe vs India"`).
-         - `"no confirmed link to an affected decision"`.
-      3. **Needs Confirmation**: Tasks linked via unconfirmed links (`link.confirmed == False`), marked as `"needs confirmation, nothing changed"` without altering task state or affecting calculations.
-    - **Measured Metrics (Invariant 10)**:
-      - `hours_at_risk`: Strict arithmetic sum of `estimate_hours` for all open affected tasks.
-      - `unestimated_tasks`: Count of open affected tasks lacking hour estimates. Never guesses an estimate.
-    - **Superseded Decisions Support**: Works directly with superseded decisions via `decision_id` (connected from Task 10's `notify_blast_radius_service`).
-
-- **Alerts & Blast Radius API (`backend/app/api/routes/alerts.py`)**:
-  - `GET /alerts`: Returns all alerts with filtering by `kind`, `status`, and `project`.
-  - `GET /alerts/{id}/blast-radius`: Returns complete computed blast radius payload including trigger evidence, affected nodes with chains, unaffected tasks with reasons, needs-confirmation tasks, and metrics.
-  - Mounted on FastAPI app in `backend/app/main.py`.
-
-- **Frontend `/affected` Screen (`frontend/app/affected/page.tsx`)**:
-  - Alert Chooser dropdown with filterable alerts (premise breaks, conflicts, expirations).
-  - Trigger Evidence Card: Side-by-side comparison of baseline quote/context vs breaking trigger event quote and speaker.
-  - Hours-at-Risk Banner: Visual highlight of total hours at risk alongside a badge for unestimated tasks.
-  - Three Categorized Sections:
-    1. **Affected Items**: Displays depth badges, connected node chains (`[P1] -> [D1] -> [T1]`), item title, and expandable "Why" chain explanations.
-    2. **Not Affected Items**: Lists unaffected tasks in the project with code-generated rationale (e.g. scope disjointness).
-    3. **Needs Confirmation**: Highlights provisional/unconfirmed items requiring human review before taking action.
-  - Responsive, clean UI using Tailwind CSS and Lucide icons.
-
-- **Unit & Integration Tests (`backend/tests/test_blast_radius.py`)**:
-  - `test_breaking_p1_affects_t1_t2_and_transitive_t6`: Breaking P1 correctly affects T1 & T2 at depth 1 and T6 at depth 2 via transitive D3.
-  - `test_europe_task_t5_is_unaffected_with_scope_reason`: T5 (Europe) is categorized as unaffected with explicit scope reason `"scope differs: Europe vs India"`.
-  - `test_unconfirmed_link_is_categorized_as_needs_confirmation`: Task linked via unconfirmed `implements` link is partitioned into `needs_confirmation` with reason `"needs confirmation, nothing changed"`.
-  - `test_hours_at_risk_calculation`: Accurately computes `hours_at_risk` without guessing unestimated tasks.
-  - `test_superseded_decision_blast_radius`: Directly calculates blast radius for superseded decisions.
-  - `test_api_get_alert_blast_radius`: Verifies REST API integration.
-  - Full suite passes: **72/72 tests passing**.
-  - Production frontend build passes: **7/7 routes prerendered without errors**.
-
-### How to Run
-```bash
-# Run blast radius tests
-.venv\Scripts\pytest.exe backend\tests\test_blast_radius.py -v
-
-# Run full backend test suite
-.venv\Scripts\pytest.exe backend\tests -v
-
-# Run frontend production build
-npm --prefix frontend run build
-```
-
-### Assumptions Made
-- In `calculate_blast_radius`, open tasks are identified where `task.status` is not `completed` or `cancelled`.
-- For decisions directly linked to a premise, edge chain starts with `Premise -> Decision`, continuing through `depends_on` and `implements` edges.
-
-### Open Issues / Deferred
-- None from Task 12.
-
----
-
-## Task 13: Rule-Based Repair Service & Interactive Plan Review UI
-### What Was Built
-- **Rule-Based Repair Generation Engine (`backend/app/services/repair.py`)**:
-  - `generate_repair_plan(db, alert_id, actor="system", suggest_replacements=True)`:
-    - **Trigger & Flow**: When a reviewer confirms a Premise Break alert, the premise becomes `status=broken`, an append-only audit row is logged, the blast radius is computed, and a repair plan (`ChangeProposal` in state `draft`) is generated.
-    - **Rule-Based Plain Code Generation (Invariant 5)**:
-      1. For each affected task with a tracker ticket (`task.tracker_ref`), a `comment_task` action is generated with text stating the broken premise, new evidence quote, speaker, and meeting date.
-      2. `mark_decision_at_risk` action for each affected decision.
-      3. `pause_reminders` action for each affected task.
-      4. `reopen_task` action for each affected task marked `done`.
-      5. The LLM may ONLY draft optional `create_task` suggestions for replacement work (title and description); code adds them as draft actions with owner and deadline null and flags them.
-    - **Idempotency Key Formulation (Invariant 3)**:
-      - Every action strictly computes `idempotency_key = hash(alert_id, action_type, target_id)` using SHA-256.
-    - **Human Review Requirement (Invariant 2)**:
-      - The proposal is created in state `draft`, strictly guaranteeing zero external writes until human approval.
-    - **Audit Log Trail (Invariant 7)**:
-      - Logs creation and action states in `audit_log`.
-
-- **Proposals & Approval REST Endpoints (`backend/app/api/routes/proposals.py`)**:
-  - `GET /proposals/{id}`: Returns proposal metadata along with every action, its target (`target_type`, `target_id`, `target_name`), state, idempotency key, and the exact planned payload that will be sent.
-  - `POST /proposals/{id}/approve`:
-    - Allows partial approval via `action_ids` (and optional edited payloads).
-    - Selected actions become `approved`, non-selected actions become `rejected`.
-    - Proposal transitions to `approved` and is passed to `execute_proposal(proposal.id, actor=actor)`.
-    - Only approved actions are executed; retrying skips already executed actions without duplicate tracker writes.
-  - `POST /proposals/{id}/reject`:
-    - Sets proposal and all non-executed actions to `rejected`.
-    - Zero external tracker calls are made (Invariant 2).
-  - `GET /proposals/{id}/preview` and `POST /proposals/{id}/preview`:
-    - Dry-run preview endpoints returning the exact planned outbound payloads.
-
-- **Alert & Review Integration (`backend/app/api/routes/alerts.py`, `backend/app/api/routes/review.py`)**:
-  - `POST /review/alerts/{id}/confirm`: Breaks premise, logs audit row, automatically generates repair plan, links `alert.proposal_id`, and returns `{"status": "confirmed", "alert_id": id, "proposal_id": proposal_id}`.
-  - `POST /alerts/{id}/repair-plan` and `GET /alerts/{id}/repair-plan`: REST endpoints to fetch or generate repair plans on demand.
-  - Mounted `proposals_router` in `backend/app/main.py`.
-
-- **Frontend Review Repair Plan Interactive UI (`frontend/app/review/page.tsx`)**:
-  - Premise Break card: Displays "Confirm Break" when open; once confirmed, displays "Review Repair Plan" with wrench icon.
-  - "Review Repair Plan" Panel / Modal:
-    - Lists each action with target badge, action type badge, idempotency key, and state.
-    - Per-action checkbox for selective/partial approval.
-    - Per-action edit box allowing the reviewer to customize comment text, risk reasons, pause reasons, or replacement task details.
-    - "Preview (dry run)" toggle switch: Instantly previews exact outbound tracker payloads without making external calls.
-    - "Approve selected" button (triggers partial or full execution).
-    - "Reject plan" button (rejects with 0 external calls).
-    - Post-execution results: Displays confirmed timestamps and direct clickable links to the tickets in the tracker (`/mock-tracker` or external URLs).
-
-- **Unit & Integration Safety Proofs (`backend/tests/test_repair.py`)**:
-  - `test_gold_repair_actions_generated_for_p1_break`: Gold repair actions are generated for P1 break (mark_decision_at_risk for D1, comment_task for T1 & T2 citing broken premise, quote, speaker Sam, date, pause_reminders for affected tasks; no comments for T3/T4 lacking tracker tickets; all idempotency keys match hash formula; 0 tracker calls in draft).
-  - `test_reject_plan_zero_tracker_calls`: Rejecting plan produces 0 comments/issues on tracker tickets.
-  - `test_approve_twice_no_duplicate_comments`: Approving twice adds comment once and skips on second execution (0 duplicate comments).
-  - `test_partial_approval_executes_only_selected_actions`: Approving T1 and D1 executes only T1 and D1; T2 remains unexecuted with 0 comments.
-  - `test_preview_payload_equals_executed_payload`: Verifies exact payload match between dry-run preview and actual executed comment/action.
-  - `test_reopen_task_for_done_tasks`: Affected tasks marked `done` generate `reopen_task` actions with proper idempotency keys, transitioning back to `open` upon approval.
-  - Full backend suite passes: **78/78 tests passing**.
-  - Production frontend build passes: **7/7 routes prerendered without errors**.
-
-### How to Run
-```bash
-# Run repair service tests
-.venv\Scripts\pytest.exe backend\tests\test_repair.py -v
-
-# Run full backend test suite
-.venv\Scripts\pytest.exe backend\tests -v
-
-# Run frontend production build
-npm --prefix frontend run build
-```
-
-### Assumptions Made
-- In `repair.py`, if an affected task does not have a `tracker_ref`, `comment_task` is skipped for that task to prevent external tracker failures.
-- In `proposals.py`, dry-run mode returns exact planned payloads matching `_build_action_payload` used in live execution.
-
-### Open Issues / Deferred
-- None from Task 13.
-
-
----
 
 ## Task 11: Continuous Premise Watchdog & Expiry Engine
 ### What Was Built
@@ -787,85 +561,6 @@ npm --prefix frontend run build
 
 ---
 
-## Task 13: Rule-Based Repair Service & Interactive Plan Review UI
-### What Was Built
-- **Rule-Based Repair Generation Engine (`backend/app/services/repair.py`)**:
-  - `generate_repair_plan(db, alert_id, actor="system", suggest_replacements=True)`:
-    - **Trigger & Flow**: When a reviewer confirms a Premise Break alert, the premise becomes `status=broken`, an append-only audit row is logged, the blast radius is computed, and a repair plan (`ChangeProposal` in state `draft`) is generated.
-    - **Rule-Based Plain Code Generation (Invariant 5)**:
-      1. For each affected task with a tracker ticket (`task.tracker_ref`), a `comment_task` action is generated with text stating the broken premise, new evidence quote, speaker, and meeting date.
-      2. `mark_decision_at_risk` action for each affected decision.
-      3. `pause_reminders` action for each affected task.
-      4. `reopen_task` action for each affected task marked `done`.
-      5. The LLM may ONLY draft optional `create_task` suggestions for replacement work (title and description); code adds them as draft actions with owner and deadline null and flags them.
-    - **Idempotency Key Formulation (Invariant 3)**:
-      - Every action strictly computes `idempotency_key = hash(alert_id, action_type, target_id)` using SHA-256.
-    - **Human Review Requirement (Invariant 2)**:
-      - The proposal is created in state `draft`, strictly guaranteeing zero external writes until human approval.
-    - **Audit Log Trail (Invariant 7)**:
-      - Logs creation and action states in `audit_log`.
-
-- **Proposals & Approval REST Endpoints (`backend/app/api/routes/proposals.py`)**:
-  - `GET /proposals/{id}`: Returns proposal metadata along with every action, its target (`target_type`, `target_id`, `target_name`), state, idempotency key, and the exact planned payload that will be sent.
-  - `POST /proposals/{id}/approve`:
-    - Allows partial approval via `action_ids` (and optional edited payloads).
-    - Selected actions become `approved`, non-selected actions become `rejected`.
-    - Proposal transitions to `approved` and is passed to `execute_proposal(proposal.id, actor=actor)`.
-    - Only approved actions are executed; retrying skips already executed actions without duplicate tracker writes.
-  - `POST /proposals/{id}/reject`:
-    - Sets proposal and all non-executed actions to `rejected`.
-    - Zero external tracker calls are made (Invariant 2).
-  - `GET /proposals/{id}/preview` and `POST /proposals/{id}/preview`:
-    - Dry-run preview endpoints returning the exact planned outbound payloads.
-
-- **Alert & Review Integration (`backend/app/api/routes/alerts.py`, `backend/app/api/routes/review.py`)**:
-  - `POST /review/alerts/{id}/confirm`: Breaks premise, logs audit row, automatically generates repair plan, links `alert.proposal_id`, and returns `{"status": "confirmed", "alert_id": id, "proposal_id": proposal_id}`.
-  - `POST /alerts/{id}/repair-plan` and `GET /alerts/{id}/repair-plan`: REST endpoints to fetch or generate repair plans on demand.
-  - Mounted `proposals_router` in `backend/app/main.py`.
-
-- **Frontend Review Repair Plan Interactive UI (`frontend/app/review/page.tsx`)**:
-  - Premise Break card: Displays "Confirm Break" when open; once confirmed, displays "Review Repair Plan" with wrench icon.
-  - "Review Repair Plan" Panel / Modal:
-    - Lists each action with target badge, action type badge, idempotency key, and state.
-    - Per-action checkbox for selective/partial approval.
-    - Per-action edit box allowing the reviewer to customize comment text, risk reasons, pause reasons, or replacement task details.
-    - "Preview (dry run)" toggle switch: Instantly previews exact outbound tracker payloads without making external calls.
-    - "Approve selected" button (triggers partial or full execution).
-    - "Reject plan" button (rejects with 0 external calls).
-    - Post-execution results: Displays confirmed timestamps and direct clickable links to the tickets in the tracker (`/mock-tracker` or external URLs).
-
-- **Unit & Integration Safety Proofs (`backend/tests/test_repair.py`)**:
-  - `test_gold_repair_actions_generated_for_p1_break`: Gold repair actions are generated for P1 break (mark_decision_at_risk for D1, comment_task for T1 & T2 citing broken premise, quote, speaker Sam, date, pause_reminders for affected tasks; no comments for T3/T4 lacking tracker tickets; all idempotency keys match hash formula; 0 tracker calls in draft).
-  - `test_reject_plan_zero_tracker_calls`: Rejecting plan produces 0 comments/issues on tracker tickets.
-  - `test_approve_twice_no_duplicate_comments`: Approving twice adds comment once and skips on second execution (0 duplicate comments).
-  - `test_partial_approval_executes_only_selected_actions`: Approving T1 and D1 executes only T1 and D1; T2 remains unexecuted with 0 comments.
-  - `test_preview_payload_equals_executed_payload`: Verifies exact payload match between dry-run preview and actual executed comment/action.
-  - `test_reopen_task_for_done_tasks`: Affected tasks marked `done` generate `reopen_task` actions with proper idempotency keys, transitioning back to `open` upon approval.
-  - Full backend suite passes: **78/78 tests passing**.
-  - Production frontend build passes: **7/7 routes prerendered without errors**.
-
-### How to Run
-```bash
-# Run repair service tests
-.venv\Scripts\pytest.exe backend\tests\test_repair.py -v
-
-# Run full backend test suite
-.venv\Scripts\pytest.exe backend\tests -v
-
-# Run frontend production build
-npm --prefix frontend run build
-```
-
-### Assumptions Made
-- In `repair.py`, if an affected task does not have a `tracker_ref`, `comment_task` is skipped for that task to prevent external tracker failures.
-- In `proposals.py`, dry-run mode returns exact planned payloads matching `_build_action_payload` used in live execution.
-
-### Open Issues / Deferred
-- None from Task 13.
-
-
----
-
 ## Task 12: Blast Radius Traversal Engine & /affected Screen
 ### What Was Built
 - **Deterministic Blast Radius Traversal Engine (`backend/app/services/blast_radius.py`)**:
@@ -932,7 +627,6 @@ npm --prefix frontend run build
 - None from Task 12.
 
 ---
-
 ## Task 13: Rule-Based Repair Service & Interactive Plan Review UI
 ### What Was Built
 - **Rule-Based Repair Generation Engine (`backend/app/services/repair.py`)**:
@@ -1011,5 +705,85 @@ npm --prefix frontend run build
 
 
 
+---
 
+## Task 14: Reminders, Weekly Digest, and `/my-week` Screen
+### What Was Built
+- **Task Reminders Engine (`backend/app/services/reminders.py`)**:
+  - `create_task_reminders(db, task, timezone_str)`:
+    - Creates 3 standard reminders when a task with a due date is created/approved: 3 days before, 1 day before, and morning-of.
+    - Each reminder is scheduled for 08:00 local time in a configurable timezone (`settings.TIMEZONE`, default UTC).
+  - `run_reminders(db, now)`:
+    - Runs as an APScheduler job every 15 minutes, and via `POST /admin/run-reminders?now=ISO` for simulated time.
+    - Each reminder is dispatched at most once (`state` transitions from `pending` to `sent`).
+    - Paused reminders are strictly skipped (`state == ReminderState.paused` or non-null `pause_reason`).
+    - Done and cancelled tasks have their reminders skipped (`state == ReminderState.skipped`).
+    - **Shaky Premise Dynamic Warning**: If any underlying premise upon which the task rests is `shaky` (or has an open premise break alert), the reminder body automatically appends: `"The reason for this task may no longer hold; please review"`.
+  - `send_outbound_notification(channel, to_addr, subject, body, db)`:
+    - Always records sent messages to `outbox` table.
+    - Real email delivery via Resend when `RESEND_API_KEY` is configured.
+    - Real email delivery via SMTP when `SMTP_HOST` is configured.
+    - Real Slack notification dispatch when `SLACK_WEBHOOK_URL` is set.
 
+- **Weekly Digest Engine (`backend/app/services/digest.py`)**:
+  - `build_digest(person_id, as_of, db)`:
+    - Builds a personal weekly digest across 5 structured sections:
+      1. `due_this_week`: Tasks owned by person due Monday through Sunday of reference date.
+      2. `overdue`: Incomplete tasks owned by person with due dates prior to reference date.
+      3. `decisions_affecting_you`: Decisions linked to the person's assigned tasks.
+      4. `alerts_needing_input`: Open alerts on decisions affecting the person.
+      5. `work_resting_on_broken_or_shaky_premises` (**NEW core safety section**): Lists any task owned by the person whose underlying premise is `broken` or `shaky`, with the premise text and exact failure rationale.
+    - Dual rendering: Generates both formatted plain-text and responsive HTML representations.
+    - **Personal Isolation Invariant**: Digest strictly filters by `Task.owner_id == person.id` and NEVER surfaces tasks owned by anyone else.
+  - `generate_and_schedule_weekly_digests(db, as_of)`:
+    - APScheduler weekly job (Mondays at 09:00), plus `POST /admin/run-digest?as_of=YYYY-MM-DD` for simulated time.
+    - Generates and writes personal digests for all roster team members directly into `outbox`.
+
+- **API Routes (`backend/app/api/routes/reminders_digest.py`)**:
+  - `GET /people`: Returns roster people list for UI person selector.
+  - `GET /digest/{person_id}?as_of=`: Returns rendered digest preview (JSON sections, rendered text, rendered HTML).
+  - `POST /admin/run-reminders?now=`: Manually triggers reminder dispatch for simulated current time.
+  - `POST /admin/run-digest?as_of=`: Manually triggers weekly digest generation and schedules to outbox.
+  - `GET /my-week/{person_id}?as_of=`: Powers `/my-week` screen, returning tasks grouped by weekday, overdue items, broken/shaky premises items, and digest preview.
+  - `GET /outbox?limit=50`: Returns outbox history items newest-first for tracking dispatched notifications.
+  - Hooked `create_task_reminders(db, task)` into `POST /review/actions/{id}/approve` in `review.py` whenever an approved action produces a dated task.
+  - Mounted `reminders_digest_router` in `backend/app/main.py` and scheduled background interval (every 15 mins) and cron (Mondays 09:00).
+
+- **Frontend `/my-week` Screen (`frontend/app/my-week/page.tsx`)**:
+  - Header with Person selector dropdown and simulated reference date picker.
+  - Quick simulation trigger buttons: "Run Reminders (Simulate)" and "Generate Weekly Digest".
+  - **Highlighted Safety Section**: "⚠️ Work Resting on Broken or Shaky Premises", displaying task badges, premise status (`BROKEN` or `SHAKY`), decision context, and rationale.
+  - **Weekly Schedule View**: 7-day grid (Monday to Sunday) highlighting "Today", displaying task cards with status badges (`open`, `at_risk`, `provisional`, `needs_owner`), due dates, estimate hours, and external tracker links.
+  - **Overdue Tasks Sidebar**: Clear counter and listing of all past-due commitments.
+  - **Digest Preview Tab**: Interactive switch between rendered HTML email view and plain-text email view.
+  - **Outbox Viewer Tab**: Dispatched notifications log table with expandable message bodies, recipient addresses, channels, and sent timestamps.
+
+- **Unit & Integration Safety Proofs (`backend/tests/test_reminders_digest.py`)**:
+  - `test_three_reminders_created_per_dated_task`: Dated task creates 3 reminders (`3d`, `1d`, `morning` at 08:00 local time).
+  - `test_running_twice_sends_once`: Calling `run_reminders` twice dispatches each reminder at most once (0 duplicate outbox items).
+  - `test_paused_reminders_are_skipped`: Reminders with `state=paused` or non-null `pause_reason` are skipped without dispatching.
+  - `test_digest_for_ravi_includes_tasks_resting_on_broken_premise`: When P1 breaks, Ravi's digest includes T1 under `work_resting_on_broken_or_shaky_premises`.
+  - `test_digest_never_lists_a_task_under_someone_elses_name`: Personal isolation strictly holds; Ravi never sees Meera's tasks, and Meera never sees Ravi's.
+  - `test_shaky_premise_adds_warning_to_reminder_text`: Reminders for tasks resting on shaky premises add `"The reason for this task may no longer hold; please review"`.
+  - `test_reminders_digest_api_endpoints`: Endpoints for `/digest`, `/admin/run-reminders`, `/admin/run-digest`, `/my-week`, and `/outbox` return status 200.
+  - Full backend test suite passes: **85/85 tests passing**.
+  - Production frontend build passes: **9/9 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run reminders and digest unit tests
+.\.venv\Scripts\pytest backend\tests\test_reminders_digest.py -v
+
+# Run full backend test suite
+.\.venv\Scripts\pytest
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Invariants Verified
+1. **Invariant 1 (Never guess owners/deadlines)**: Tasks without due dates generate 0 reminders.
+2. **Invariant 2 (Zero unapproved external writes)**: Reminders only created for tasks approved through review queue.
+3. **Invariant 3 (Idempotent execution)**: `run_reminders` runs idempotently with 0 duplicate sends.
+4. **Invariant 4 (Unconfirmed premises never treated as fact)**: Only confirmed premises impact holding status; broken/shaky premises surface warnings.
+5. **Invariant 10 (Strict personal isolation)**: Digest never lists tasks belonging to teammates.
