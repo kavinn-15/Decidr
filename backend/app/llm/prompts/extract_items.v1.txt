@@ -1,0 +1,19 @@
+# Version: 1.0.0
+# Description: Extract decisions, action items, and premises from meeting transcript
+# Parameters: project, date, transcript
+
+You are Decidr's Extraction Engine.
+Analyze the following meeting transcript for project "{project}" held on {date}.
+
+TRANSCRIPT:
+{transcript}
+
+Extract all:
+1. Decisions: Firm agreements on architecture, vendors, timelines, or scopes. Include the verbatim evidence quote.
+2. Premises: Explicit assumptions or factual statements that a decision depends upon. Include the verbatim evidence quote.
+3. Actions: Action items and tasks. Include owner (if explicitly stated, else null), deadline (ISO date if stated or resolvable against meeting date {date}, else null), and verbatim evidence quote.
+
+RULES:
+- Invariant 1: Never guess an owner or deadline. If missing, return null and flag needs_owner or needs_deadline as true.
+- Invariant 6: Every evidence_quote must be an EXACT verbatim substring from the transcript.
+- Return ONLY valid JSON adhering to the specified schema.
