@@ -71,13 +71,8 @@ def get_current_verified_user(
     user: User = Depends(get_current_user),
 ) -> User:
     """
-    Ensures the authenticated user has verified their email address.
+    Returns the authenticated user. Email verification is no longer required.
     """
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email address not verified. Please verify your email before continuing.",
-        )
     return user
 
 

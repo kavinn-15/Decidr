@@ -20,50 +20,6 @@ def is_email_configured() -> bool:
     return False
 
 
-def send_verification_email(to_email: str, full_name: str, token: str) -> Tuple[bool, Optional[str]]:
-    """
-    Sends an email verification link and token to the user.
-    Returns (True, None) if sent, or (False, reason) if not sent / not configured.
-    """
-    subject = "Verify your Decidr account"
-    frontend_origin = "https://decidr-pi.vercel.app" if settings.ENVIRONMENT == "production" else "http://localhost:3000"
-    verify_url = f"{frontend_origin}/verify-email?token={token}&email={to_email}"
-
-    text_body = f"""Hello {full_name},
-
-Thank you for registering for Decidr.
-
-Please verify your email address by visiting the following link:
-{verify_url}
-
-Your direct verification token: {token}
-
-This verification link will expire in {settings.VERIFICATION_TOKEN_EXPIRE_HOURS} hours.
-
-— The Decidr Team
-Decisions don't fail. Their assumptions do.
-"""
-
-    html_body = f"""<!DOCTYPE html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px 20px;">
-  <div style="max-width: 560px; margin: 0 auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px;">
-    <h2 style="color: #38bdf8; margin-top: 0;">Verify your Decidr account</h2>
-    <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">Hello {full_name},</p>
-    <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">Thank you for registering for Decidr. Click the button below to verify your email address:</p>
-    <div style="margin: 30px 0; text-align: center;">
-      <a href="{verify_url}" style="background-color: #0284c7; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">Verify Email Address</a>
-    </div>
-    <p style="color: #94a3b8; font-size: 13px;">Or enter your token directly: <code style="background-color: #0f172a; padding: 4px 8px; border-radius: 4px; color: #38bdf8;">{token}</code></p>
-    <p style="color: #64748b; font-size: 12px; border-top: 1px solid #334155; padding-top: 16px; margin-top: 24px;">This link will expire in {settings.VERIFICATION_TOKEN_EXPIRE_HOURS} hours. If you did not create an account, you can ignore this email.</p>
-  </div>
-</body>
-</html>
-"""
-
-    return _dispatch_email(to_email, subject, text_body, html_body)
-
-
 def send_password_reset_email(to_email: str, full_name: str, token: str) -> Tuple[bool, Optional[str]]:
     """
     Sends a password reset link and token to the user.

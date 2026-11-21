@@ -222,18 +222,16 @@ def test_invalid_credentials_return_401():
         assert "Invalid email or password." in exc2.value.detail
 
 
-def test_verified_email_flow_when_email_service_is_active(monkeypatch):
-    """Validates that when email service is active, unverified users get 403 until verified."""
+def test_registration_and_login_without_email_verification_even_if_email_active(monkeypatch):
+    """Validates that users register active accounts and log in immediately without verification."""
     import uuid
     from app.db.session import SessionLocal
-    from app.api.routes.auth import register_user, login_user, verify_email
-    from app.schemas.auth import UserRegisterRequest, UserLoginRequest, VerifyEmailRequest
+    from app.api.routes.auth import register_user, login_user
+    from app.schemas.auth import UserRegisterRequest, UserLoginRequest
     import app.api.routes.auth as auth_module
 
-    # Mock email delivery as active
+    # Mock email delivery as active to ensure no verification email gating occurs
     monkeypatch.setattr(auth_module, "is_email_configured", lambda: True)
-    # Mock dispatch so no real network call is made
-    monkeypatch.setattr(auth_module, "send_verification_email", lambda email, name, token: (True, None))
 
     test_email = f"verified_flow_{uuid.uuid4().hex[:8]}@decidr.ai"
     test_password = "SecurePassword2026!"
@@ -246,28 +244,18 @@ def test_verified_email_flow_when_email_service_is_active(monkeypatch):
             confirm_password=test_password,
         )
         reg_resp = register_user(req=reg_req, db=db)
-        assert reg_resp.email_sent is True
+        assert reg_resp.status == "ok"
+        assert reg_resp.email_sent is False
 
-        # Check DB: is_verified must be False while email service is active
+        # Check DB: is_verified must be True immediately
         saved = db.query(User).filter(User.email == test_email).first()
-        assert saved.is_verified is False
-        token = saved.verification_token
-        assert token is not None
+        assert saved.is_verified is True
+        assert saved.verification_token is None
 
-        # Trying to log in before verification must raise 403 Forbidden
-        with pytest.raises(HTTPException) as exc_login:
-            login_user(req=UserLoginRequest(email=test_email, password=test_password), db=db)
-        assert exc_login.value.status_code == 403
-        assert "verify your email" in exc_login.value.detail
-
-        # Complete email verification
-        ver_resp = verify_email(req=VerifyEmailRequest(token=token), db=db)
-        assert ver_resp.access_token is not None
-        assert ver_resp.user.is_verified is True
-
-        # Now login must succeed with 200
+        # Login immediately succeeds with 200
         login_resp = login_user(req=UserLoginRequest(email=test_email, password=test_password), db=db)
         assert login_resp.access_token is not None
         assert login_resp.user.email == test_email
+        assert login_resp.user.is_verified is True
 
 

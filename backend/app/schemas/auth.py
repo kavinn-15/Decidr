@@ -16,15 +16,6 @@ class UserLoginRequest(BaseModel):
     remember_me: bool = False
 
 
-class VerifyEmailRequest(BaseModel):
-    token: str = Field(..., min_length=1, max_length=255)
-    email: Optional[str] = None
-
-
-class ResendVerificationRequest(BaseModel):
-    email: str = Field(..., max_length=255)
-
-
 class ForgotPasswordRequest(BaseModel):
     email: str = Field(..., max_length=255)
 

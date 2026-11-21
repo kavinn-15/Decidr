@@ -17,8 +17,6 @@ from app.models.models import User, AuditLog
 from app.schemas.auth import (
     UserRegisterRequest,
     UserLoginRequest,
-    VerifyEmailRequest,
-    ResendVerificationRequest,
     ForgotPasswordRequest,
     ResetPasswordRequest,
     GoogleAuthRequest,
@@ -28,7 +26,6 @@ from app.schemas.auth import (
     AuthStatusResponse,
 )
 from app.services.email import (
-    send_verification_email,
     send_password_reset_email,
     is_email_configured,
 )
@@ -54,7 +51,7 @@ def register_user(
 ):
     """
     Registers a new user account with email format validation, password strength enforcement,
-    and dispatch of an email verification token.
+    and immediate account activation without requiring email verification.
     """
     email = req.email.strip().lower()
     full_name = req.full_name.strip()
@@ -89,22 +86,17 @@ def register_user(
             detail="An account with this email address already exists. Please log in or reset your password.",
         )
 
-    # 5. Create user record
-    token = generate_secure_token(32)
+    # 5. Create user record (immediately active and verified)
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
-
-    email_delivery = is_email_configured()
-
     new_user = User(
         email=email,
         full_name=full_name,
         hashed_password=hash_password(req.password),
-        is_verified=True if not email_delivery else False,
+        is_verified=True,
         is_active=True,
         role="member",
-        verification_token=token if email_delivery else None,
-        verification_token_expires_at=expires_at if email_delivery else None,
+        verification_token=None,
+        verification_token_expires_at=None,
         verification_attempts=0,
         created_at=now,
     )
@@ -112,120 +104,11 @@ def register_user(
     db.commit()
     db.refresh(new_user)
 
-    # 6. Send verification email
-    if email_delivery:
-        sent, reason = send_verification_email(email, full_name, token)
-        dev_token = None
-        message = (
-            "Registration successful. A verification email has been dispatched."
-            if sent
-            else f"Registration successful. Notice: {reason}"
-        )
-    else:
-        sent = False
-        dev_token = token
-        message = "Registration successful. You can now log in with your credentials."
-
     return MessageResponse(
         status="ok",
-        message=message,
-        email_sent=sent,
-        dev_token=dev_token,
-    )
-
-
-@router.post("/verify-email", response_model=TokenResponse)
-def verify_email(
-    req: VerifyEmailRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Verifies an account using the verification token. Prevents token reuse, limits attempts,
-    and returns an access token on success.
-    """
-    token = req.token.strip()
-    query = db.query(User).filter(User.verification_token == token)
-    if req.email:
-        query = query.filter(User.email == req.email.strip().lower())
-
-    user = query.first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid verification token. Please verify the link or request a new one.",
-        )
-
-    # Check attempt limit
-    if user.verification_attempts >= settings.MAX_VERIFICATION_ATTEMPTS:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Maximum verification attempts exceeded. Please request a new verification email.",
-        )
-
-    user.verification_attempts += 1
-
-    # Check expiration
-    now = datetime.now(timezone.utc)
-    if user.verification_token_expires_at and now > user.verification_token_expires_at.replace(tzinfo=timezone.utc):
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification token has expired. Please request a new verification email.",
-        )
-
-    # Mark verified & invalidate token (prevent reuse!)
-    user.is_verified = True
-    user.verification_token = None
-    user.verification_token_expires_at = None
-    user.last_login_at = now
-    db.commit()
-    db.refresh(user)
-
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role}
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UserResponse.model_validate(user),
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-
-
-@router.post("/resend-verification", response_model=MessageResponse)
-def resend_verification(
-    req: ResendVerificationRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Resends verification email. Uses generic timing-safe response to prevent email enumeration.
-    """
-    email = req.email.strip().lower()
-    user = db.query(User).filter(User.email == email).first()
-
-    # Generic response if not found or already verified
-    generic_msg = "If an unverified account exists with that email, a verification link has been sent."
-    if not user or user.is_verified:
-        return MessageResponse(status="ok", message=generic_msg, email_sent=False)
-
-    # Refresh verification token and expiry
-    token = generate_secure_token(32)
-    now = datetime.now(timezone.utc)
-    user.verification_token = token
-    user.verification_token_expires_at = now + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
-    user.verification_attempts = 0
-    db.commit()
-
-    sent, reason = send_verification_email(user.email, user.full_name, token)
-    dev_token = token if (settings.DEMO_MODE and not sent) else None
-
-    return MessageResponse(
-        status="ok",
-        message=generic_msg if sent else f"{generic_msg} (Notice: {reason})",
-        email_sent=sent,
-        dev_token=dev_token,
+        message="Registration successful. You can now log in with your credentials.",
+        email_sent=False,
+        dev_token=None,
     )
 
 
@@ -236,7 +119,7 @@ def login_user(
 ):
     """
     Authenticates user credentials. Returns JWT bearer token on valid credentials.
-    Rejects unverified or deactivated accounts.
+    Rejects suspended or deactivated accounts.
     """
     email = req.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -256,18 +139,11 @@ def login_user(
             detail="Account has been suspended or deactivated. Please contact support.",
         )
 
-    # Check verified status
+    # Ensure user is marked verified for backward compatibility
     if not user.is_verified:
-        if not is_email_configured():
-            # If email delivery is not configured on the deployment, auto-verify user on valid password authentication
-            user.is_verified = True
-            db.commit()
-            db.refresh(user)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please verify your email address before logging in. Check your inbox or request a new verification link.",
-            )
+        user.is_verified = True
+        db.commit()
+        db.refresh(user)
 
     # Update last login
     now = datetime.now(timezone.utc)

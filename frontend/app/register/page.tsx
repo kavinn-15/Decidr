@@ -72,8 +72,7 @@ export default function RegisterPage() {
       });
 
       setSuccessInfo({
-        message: res.message,
-        devToken: res.dev_token,
+        message: res.message || "Account created successfully.",
       });
     } catch (err: any) {
       setError(err.message || "Failed to complete registration.");
@@ -115,34 +114,16 @@ export default function RegisterPage() {
               <div className="w-12 h-12 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-white">Check your email</h3>
+              <h3 className="text-lg font-bold text-white">Account Created Successfully!</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                {successInfo.message}
+                Your enterprise account is ready. You can now sign in to Decidr.
               </p>
 
-              {successInfo.devToken && (
-                <div className="p-3.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-left">
-                  <div className="flex items-center justify-between text-[11px] text-cyan-400 font-semibold mb-1">
-                    <span>Demo Mode Token Preview</span>
-                    <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 text-[10px]">Dev Auto</span>
-                  </div>
-                  <code className="text-xs text-slate-200 font-mono break-all select-all">
-                    {successInfo.devToken}
-                  </code>
-                </div>
-              )}
-
               <button
-                onClick={() =>
-                  router.push(
-                    `/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(
-                      successInfo.devToken || ""
-                    )}`
-                  )
-                }
+                onClick={() => router.push("/login")}
                 className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all"
               >
-                Continue to Email Verification
+                Sign In Now
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

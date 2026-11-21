@@ -1054,23 +1054,6 @@ export async function loginUser(payload: {
   });
 }
 
-export async function verifyEmail(payload: {
-  token: string;
-  email?: string;
-}): Promise<AuthTokenResponse> {
-  return apiRequest<AuthTokenResponse>("/auth/verify-email", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function resendVerification(email: string): Promise<AuthMessageResponse> {
-  return apiRequest<AuthMessageResponse>("/auth/resend-verification", {
-    method: "POST",
-    body: JSON.stringify({ email }),
-  });
-}
-
 export async function forgotPassword(email: string): Promise<AuthMessageResponse> {
   return apiRequest<AuthMessageResponse>("/auth/forgot-password", {
     method: "POST",

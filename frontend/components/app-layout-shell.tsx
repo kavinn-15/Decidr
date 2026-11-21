@@ -15,7 +15,6 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
-    pathname.startsWith("/verify-email") ||
     pathname.startsWith("/forgot-password");
 
   useEffect(() => {

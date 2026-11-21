@@ -71,6 +71,8 @@ def init_db(engine_instance: Engine | None = None) -> None:
         try:
             from app.models.models import User
             from app.core.security import hash_password
+            # Automatically verify any existing unverified accounts
+            session.query(User).filter(User.is_verified == False).update({"is_verified": True})
             demo_user = session.query(User).filter(User.email == "demo@decidr.ai").first()
             if not demo_user:
                 demo_user = User(
@@ -82,10 +84,9 @@ def init_db(engine_instance: Engine | None = None) -> None:
                     role="admin",
                 )
                 session.add(demo_user)
-                session.commit()
-            elif not demo_user.is_verified or not demo_user.is_active:
+            else:
                 demo_user.is_verified = True
                 demo_user.is_active = True
-                session.commit()
+            session.commit()
         except Exception:
             session.rollback()
