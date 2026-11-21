@@ -58,7 +58,7 @@ Ravi: That's a strange glitch. Anyway, let's keep working on the Payments Revamp
     assert len(approved_proposals) == 0
 
 
-def test_empty_transcript_fails_gracefully():
+def test_empty_transcript_fails_gracefully(client):
     """
     Test B.2a: Uploading an empty transcript returns HTTP 400 Bad Request gracefully.
     """
@@ -235,7 +235,7 @@ def test_fabricated_llm_quote_is_dropped():
     assert matched is None
 
 
-def test_responses_and_config_never_leak_secrets():
+def test_responses_and_config_never_leak_secrets(client):
     """
     Test F: Check logs and responses never contain API keys or tokens.
     """
@@ -256,7 +256,7 @@ def test_responses_and_config_never_leak_secrets():
     assert "password" not in health_resp.text.lower()
 
 
-def test_path_traversal_filename_is_sanitized():
+def test_path_traversal_filename_is_sanitized(client):
     """
     Security Test: Attempting a directory traversal filename (e.g., ../../../evil.vtt)
     is sanitized to base filename (evil.vtt).
@@ -278,7 +278,7 @@ def test_path_traversal_filename_is_sanitized():
     assert created_meeting["transcript_ref"] == "passwd.vtt"
 
 
-def test_unsupported_file_extension_is_rejected():
+def test_unsupported_file_extension_is_rejected(client):
     """
     Security Test: Uploading dangerous or non-whitelisted file extensions (.exe, .py, .sh)
     is blocked with HTTP 400 Bad Request.

@@ -30,9 +30,11 @@ from app.models.models import (
     ChangeProposal,
     ChangeAction,
     Person,
+    User,
 )
 from app.services.audit import log
 from app.services.executor import execute_proposal
+from app.api.deps import get_current_user, verify_project_access
 
 router = APIRouter(tags=["review"])
 
@@ -76,7 +78,11 @@ class GenericActionRequest(BaseModel):
 # --- Review Queue GET Endpoint ---
 
 @router.get("/meetings/{meeting_id}/review")
-def get_meeting_review_queue(meeting_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+def get_meeting_review_queue(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """
     Returns review queue cards in strict priority order:
     1. Premise break and conflict alerts first
@@ -90,6 +96,7 @@ def get_meeting_review_queue(meeting_id: int, db: Session = Depends(get_db)) -> 
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meeting with id {meeting_id} not found",
         )
+    verify_project_access(meeting.project, current_user, db)
 
     # 1. Alerts for this meeting (premise_break, conflict, expiry)
     alerts = (

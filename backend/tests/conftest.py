@@ -43,9 +43,33 @@ def db(engine: Engine) -> Generator[Session, None, None]:
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def default_auth_dependency_override(db: Session):
+    from app.models.models import User
+    from app.core.security import hash_password
+    from app.api.deps import get_current_user
+
+    demo_user = db.query(User).filter(User.email == "demo@decidr.ai").first()
+    if not demo_user:
+        demo_user = User(
+            email="demo@decidr.ai",
+            full_name="Decidr Demo Admin",
+            hashed_password=hash_password("DecidrDemo2026!"),
+            is_verified=True,
+            is_active=True,
+            role="admin",
+        )
+        db.add(demo_user)
+        db.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: demo_user
+    yield demo_user
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 @pytest.fixture
 def client(db: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = lambda: db
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_db, None)

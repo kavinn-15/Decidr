@@ -41,6 +41,45 @@ class ReadOnlyAuditLogError(Exception):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    hashed_password = Column(String(500), nullable=True)  # Nullable for OAuth accounts
+    is_verified = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    role = Column(String(50), default="member", nullable=False)  # "admin", "member", "viewer"
+
+    verification_token = Column(String(255), nullable=True, index=True)
+    verification_token_expires_at = Column(DateTime, nullable=True)
+    verification_attempts = Column(Integer, default=0, nullable=False)
+
+    reset_token = Column(String(255), nullable=True, index=True)
+    reset_token_expires_at = Column(DateTime, nullable=True)
+    reset_attempts = Column(Integer, default=0, nullable=False)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
+
+    project_memberships = relationship("ProjectMember", back_populates="user", cascade="all, delete-orphan")
+    owned_meetings = relationship("Meeting", back_populates="owner")
+
+
+class ProjectMember(Base):
+    __tablename__ = "project_members"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project = Column(String(255), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(50), default="member", nullable=False)  # "owner", "admin", "member", "viewer"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = relationship("User", back_populates="project_memberships")
+
+
 class Person(Base):
     __tablename__ = "people"
 
@@ -71,7 +110,9 @@ class Meeting(Base):
         default=MeetingStatus.uploaded,
     )
     error = Column(String(1000), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    owner = relationship("User", back_populates="owned_meetings")
     utterances = relationship("Utterance", back_populates="meeting", cascade="all, delete-orphan")
     items = relationship("Item", back_populates="meeting", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="meeting")

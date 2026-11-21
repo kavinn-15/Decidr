@@ -24,6 +24,7 @@ from app.api.routes.alerts import router as alerts_router
 from app.api.routes.proposals import router as proposals_router
 from app.api.routes.reminders_digest import router as reminders_digest_router
 from app.api.routes.evaluation import router as evaluation_router
+from app.api.routes.auth import router as auth_router
 from app.services.premise_watch import run_expiry
 from app.services.reminders import run_reminders
 from app.services.digest import generate_and_schedule_weekly_digests
@@ -76,6 +77,7 @@ app.add_middleware(
 )
 
 # Register routes
+app.include_router(auth_router)
 app.include_router(meetings_router)
 app.include_router(trackers_router)
 app.include_router(review_router)

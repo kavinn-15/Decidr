@@ -26,6 +26,24 @@ class Settings(BaseSettings):
 
     DEMO_MODE: bool = True
 
+    # Authentication & Security
+    JWT_SECRET_KEY: str = "decidr-super-secure-jwt-secret-key-change-in-production-2026"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours standard
+    REMEMBER_ME_EXPIRE_DAYS: int = 30  # 30 days for remember-me
+    VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 2
+    MAX_VERIFICATION_ATTEMPTS: int = 5
+    MAX_RESET_ATTEMPTS: int = 5
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+
+    # Multi-user & Project Authorization
+    AUTH_ENFORCED: bool = True
+
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

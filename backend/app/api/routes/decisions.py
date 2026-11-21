@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 
 from app.db.session import get_db
-from app.models.models import Decision, DecisionVersion, Premise, Task, Link, AuditLog
+from app.models.models import Decision, DecisionVersion, Premise, Task, Link, AuditLog, User
 from app.models.enums import DecisionStatus
 from app.services.ledger import search
 from app.services.links import neighbors
+from app.api.deps import get_current_user, verify_project_access
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
@@ -81,6 +82,7 @@ def list_decisions(
 def get_decision_detail(
     id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Returns full decision details:
@@ -103,6 +105,8 @@ def get_decision_detail(
     )
     if not decision:
         raise HTTPException(status_code=404, detail="Decision not found")
+
+    verify_project_access(decision.scope_project, current_user, db)
 
     meeting = decision.item.meeting if (decision.item and decision.item.meeting) else None
 

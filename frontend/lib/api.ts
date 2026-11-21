@@ -1,3 +1,5 @@
+import { getAuthHeaders } from "@/lib/auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface HealthResponse {
@@ -148,9 +150,11 @@ export async function fetchHealth(): Promise<HealthResponse> {
 
 export async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const authHeaders = typeof window !== "undefined" ? getAuthHeaders() : {};
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders,
       ...(options?.headers || {}),
     },
     ...options,
@@ -354,8 +358,12 @@ export interface UnmappedSpeakerItem {
 }
 
 export async function uploadMeeting(formData: FormData): Promise<MeetingSummary> {
+  const authHeaders = typeof window !== "undefined" ? getAuthHeaders() : {};
   const res = await fetch(`${API_BASE}/meetings`, {
     method: "POST",
+    headers: {
+      ...authHeaders,
+    },
     body: formData,
   });
   if (!res.ok) {
@@ -962,6 +970,119 @@ export async function fetchEvalCsv(): Promise<string> {
 export async function triggerRunEval(heldout: boolean = false): Promise<EvalReport> {
   return apiRequest<EvalReport>(`/eval/run?heldout=${heldout}`, { method: "POST" });
 }
+
+// --- Authentication Interfaces & Endpoints ---
+
+export interface AuthStatus {
+  google_oauth_enabled: boolean;
+  email_delivery_enabled: boolean;
+  demo_mode: boolean;
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: number;
+    email: string;
+    full_name: string;
+    is_verified: boolean;
+    role: string;
+    created_at?: string;
+  };
+  expires_in: number;
+}
+
+export interface AuthMessageResponse {
+  status: string;
+  message: string;
+  email_sent?: boolean;
+  dev_token?: string | null;
+}
+
+export async function fetchAuthStatus(): Promise<AuthStatus> {
+  return apiRequest<AuthStatus>("/auth/status");
+}
+
+export async function registerUser(payload: {
+  full_name: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+}): Promise<AuthMessageResponse> {
+  return apiRequest<AuthMessageResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function loginUser(payload: {
+  email: string;
+  password: string;
+  remember_me?: boolean;
+}): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function verifyEmail(payload: {
+  token: string;
+  email?: string;
+}): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resendVerification(email: string): Promise<AuthMessageResponse> {
+  return apiRequest<AuthMessageResponse>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function forgotPassword(email: string): Promise<AuthMessageResponse> {
+  return apiRequest<AuthMessageResponse>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}): Promise<AuthMessageResponse> {
+  return apiRequest<AuthMessageResponse>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchMe(): Promise<any> {
+  return apiRequest("/auth/me");
+}
+
+export async function logoutUser(): Promise<{ status: string; message: string }> {
+  try {
+    return await apiRequest<{ status: string; message: string }>("/auth/logout", {
+      method: "POST",
+    });
+  } catch {
+    return { status: "ok", message: "Logged out locally" };
+  }
+}
+
+export async function googleAuthLogin(credential: string): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+}
+
 
 
 

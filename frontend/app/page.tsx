@@ -1,717 +1,600 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Upload,
-  Play,
-  RotateCcw,
-  Users,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Calendar,
-  Layers,
-  ChevronRight,
-  RefreshCw,
+  ArrowRight,
+  Shield,
   FileText,
-  AlertCircle,
-  X,
-  Check,
+  AlertTriangle,
+  Layers,
   Sparkles,
-  Trash2,
+  Clock,
+  CheckCircle2,
+  Lock,
+  GitBranch,
+  RefreshCw,
+  Users,
+  Eye,
+  Server,
+  Zap,
+  ChevronRight,
+  Terminal,
 } from "lucide-react";
-import {
-  fetchMeetings,
-  uploadMeeting,
-  processMeeting,
-  deleteMeeting,
-  fetchUnmappedSpeakers,
-  patchSpeaker,
-  fetchRoster,
-  fetchConfig,
-  resetDemoData,
-  MeetingSummary,
-  UnmappedSpeakerItem,
-  PersonItem,
-} from "@/lib/api";
+import { isAuthenticated, getUser, AuthUser } from "@/lib/auth";
 
-interface Toast {
-  id: string;
-  type: "success" | "error" | "info";
-  message: string;
-}
-
-export default function MeetingsPage() {
-  const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [demoMode, setDemoMode] = useState<boolean>(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  // Upload Modal State
-  const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [title, setTitle] = useState<string>("");
-  const [dateVal, setDateVal] = useState<string>("2026-11-21");
-  const [project, setProject] = useState<string>("Payments Revamp");
-  const [region, setRegion] = useState<string>("");
-  const [release, setRelease] = useState<string>("");
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-
-  // Unmapped Speaker Modal State
-  const [speakerModalMeeting, setSpeakerModalMeeting] = useState<MeetingSummary | null>(null);
-  const [unmappedSpeakers, setUnmappedSpeakers] = useState<UnmappedSpeakerItem[]>([]);
-  const [roster, setRoster] = useState<PersonItem[]>([]);
-  const [speakerSelections, setSpeakerSelections] = useState<Record<string, number>>({});
-  const [isSavingSpeaker, setIsSavingSpeaker] = useState<boolean>(false);
-
-  const addToast = (message: string, type: "success" | "error" | "info" = "info") => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4500);
-  };
-
-  const loadData = async () => {
-    try {
-      const [meetingsData, configData] = await Promise.all([
-        fetchMeetings(),
-        fetchConfig().catch(() => ({ demo_mode: false, llm_provider: "gemini", tracker: "mock" })),
-      ]);
-      setMeetings(meetingsData);
-      setDemoMode(configData.demo_mode);
-    } catch (err: any) {
-      addToast(err.message || "Failed to load meetings", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function LandingPage() {
+  const [authedUser, setAuthedUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    loadData();
+    if (isAuthenticated()) {
+      setAuthedUser(getUser());
+    }
   }, []);
 
-  // Polling for processing status
-  useEffect(() => {
-    const hasProcessing = meetings.some((m) => m.status === "processing");
-    if (!hasProcessing) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const freshMeetings = await fetchMeetings();
-        setMeetings(freshMeetings);
-      } catch {
-        // Silently continue polling
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [meetings]);
-
-  // Upload handler
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadFile) {
-      addToast("Please select a transcript file (.vtt, .srt, .txt, .json)", "error");
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append("file", uploadFile);
-      formData.append("title", title);
-      formData.append("date", dateVal);
-      formData.append("project", project);
-      if (region.trim()) formData.append("region", region.trim());
-      if (release.trim()) formData.append("release", release.trim());
-
-      const created = await uploadMeeting(formData);
-      addToast(`Meeting "${created.title}" uploaded successfully!`, "success");
-      setIsUploadOpen(false);
-      setUploadFile(null);
-      setTitle("");
-      setRegion("");
-      setRelease("");
-      loadData();
-    } catch (err: any) {
-      addToast(err.message || "Failed to upload meeting", "error");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // Trigger Background Extraction
-  const handleProcess = async (meetingId: number) => {
-    try {
-      await processMeeting(meetingId);
-      addToast("Extraction started in background. Polling status...", "info");
-      // Instantly mark as processing in local state
-      setMeetings((prev) =>
-        prev.map((m) => (m.id === meetingId ? { ...m, status: "processing" } : m))
-      );
-    } catch (err: any) {
-      addToast(err.message || "Failed to trigger processing", "error");
-    }
-  };
-
-  // Open speaker mapping modal
-  const handleOpenSpeakerModal = async (meeting: MeetingSummary) => {
-    setSpeakerModalMeeting(meeting);
-    try {
-      const [unmappedList, rosterList] = await Promise.all([
-        fetchUnmappedSpeakers(meeting.id),
-        fetchRoster().catch(() => []),
-      ]);
-      setUnmappedSpeakers(unmappedList);
-      setRoster(rosterList);
-      const initialMap: Record<string, number> = {};
-      unmappedList.forEach((s) => {
-        // Try auto-matching if name matches roster
-        const match = rosterList.find((r) => r.name.toLowerCase() === s.speaker_raw.toLowerCase());
-        if (match) initialMap[s.speaker_raw] = match.id;
-      });
-      setSpeakerSelections(initialMap);
-    } catch (err: any) {
-      addToast(err.message || "Failed to load speaker mapping details", "error");
-    }
-  };
-
-  // Save speaker mapping
-  const handleSaveSpeakerMapping = async (speakerRaw: string) => {
-    if (!speakerModalMeeting) return;
-    const personId = speakerSelections[speakerRaw];
-    if (!personId) {
-      addToast("Please select a person from the roster to map", "error");
-      return;
-    }
-
-    try {
-      setIsSavingSpeaker(true);
-      await patchSpeaker(speakerModalMeeting.id, speakerRaw, personId);
-      addToast(`Speaker "${speakerRaw}" mapped successfully across meeting!`, "success");
-      // Remove from unmapped list
-      setUnmappedSpeakers((prev) => prev.filter((s) => s.speaker_raw !== speakerRaw));
-      loadData();
-    } catch (err: any) {
-      addToast(err.message || "Failed to map speaker", "error");
-    } finally {
-      setIsSavingSpeaker(false);
-    }
-  };
-
-  // Delete Meeting (Privacy Compliance)
-  const handleDeleteMeeting = async (meetingId: number, meetingTitle: string) => {
-    if (!confirm(`Permanently purge "${meetingTitle}"?\n\nThis removes transcript text and derived items in accordance with privacy compliance, keeping only an append-only audit entry.`)) {
-      return;
-    }
-    try {
-      await deleteMeeting(meetingId);
-      addToast(`Meeting transcript and derived items purged cleanly.`, "success");
-      loadData();
-    } catch (err: any) {
-      addToast(err.message || "Failed to delete meeting", "error");
-    }
-  };
-
-  // Reset Demo Data
-  const handleResetDemo = async () => {
-    if (!confirm("Are you sure you want to reset all demo data? This will reseed the database.")) {
-      return;
-    }
-    try {
-      setLoading(true);
-      await resetDemoData();
-      addToast("Demo data reseeded cleanly!", "success");
-      loadData();
-    } catch (err: any) {
-      addToast(err.message || "Failed to reset demo data", "error");
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Meetings Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Ingest transcripts, monitor background extraction, and verify decisions before execution.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {demoMode && (
-            <button
-              onClick={handleResetDemo}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100 transition-colors shadow-2xs"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset Demo Data
-            </button>
-          )}
-          <button
-            onClick={() => setIsUploadOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
-          >
-            <Upload className="w-4 h-4" />
-            Upload Meeting
-          </button>
-        </div>
+    <div className="min-h-screen bg-[#070B14] text-slate-100 selection:bg-cyan-500 selection:text-white font-sans antialiased overflow-x-hidden">
+      {/* Background glow effects */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[140px]" />
+        <div className="absolute top-[30%] right-[10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[160px]" />
+        <div className="absolute bottom-[10%] left-[10%] w-[500px] h-[500px] bg-sky-600/10 rounded-full blur-[140px]" />
       </div>
 
-      {/* Meetings Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-sm text-slate-800">
-            <Layers className="w-4 h-4 text-indigo-600" />
-            Transcripts Repository ({meetings.length})
+      {/* ========================================================= */}
+      {/* SECTION A: NAVIGATION */}
+      {/* ========================================================= */}
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-[#070B14]/80 border-b border-slate-800/80">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+              D
+            </div>
+            <div>
+              <span className="font-bold text-xl tracking-tight text-white flex items-center gap-1.5">
+                Decidr
+                <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-400 border border-cyan-500/30">
+                  Agent
+                </span>
+              </span>
+              <p className="text-[11px] text-slate-400 font-medium">Decision Intelligence</p>
+            </div>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+            <a href="#how-it-works" className="hover:text-cyan-400 transition-colors">How It Works</a>
+            <a href="#problem" className="hover:text-cyan-400 transition-colors">The Problem</a>
+            <a href="#features" className="hover:text-cyan-400 transition-colors">Features</a>
+            <a href="#security" className="hover:text-cyan-400 transition-colors">Security</a>
+          </nav>
+
+          <div className="flex items-center gap-4">
+            {authedUser ? (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all hover:scale-[1.02]"
+              >
+                Go to Dashboard
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all hover:scale-[1.02]"
+                >
+                  Get Started
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
-          <button
-            onClick={loadData}
-            title="Refresh"
-            className="text-slate-500 hover:text-slate-800 p-1 rounded hover:bg-slate-200 transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+        </div>
+      </header>
+
+      {/* ========================================================= */}
+      {/* SECTION B: HERO */}
+      {/* ========================================================= */}
+      <section className="relative z-10 pt-20 pb-28 px-6 max-w-7xl mx-auto text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-semibold uppercase tracking-wider mb-8 shadow-inner">
+          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          Continuous Decision Intelligence & Premise Monitoring
         </div>
 
-        {loading ? (
-          <div className="p-8 space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse flex items-center justify-between py-3 border-b border-slate-100">
-                <div className="space-y-2 w-1/3">
-                  <div className="h-4 bg-slate-200 rounded w-3/4"></div>
-                  <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.1] max-w-5xl mx-auto">
+          Decisions don&apos;t fail. <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500">
+            Their assumptions do.
+          </span>
+        </h1>
+
+        <p className="mt-8 text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed">
+          Decidr monitors the reasoning behind your team&apos;s decisions, detects when assumptions stop being true, and identifies the work that needs attention before another sprint is wasted.
+        </p>
+
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Link
+            href="/register"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-base shadow-xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:scale-[1.02] transition-all"
+          >
+            Get Started Free
+            <ArrowRight className="w-5 h-5" />
+          </Link>
+          <Link
+            href="/dashboard"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-slate-900/90 text-slate-200 border border-slate-700 font-semibold text-base hover:bg-slate-800 hover:text-white transition-all"
+          >
+            Explore Platform
+          </Link>
+        </div>
+
+        {/* ========================================================= */}
+        {/* FAITHFUL PRODUCT DASHBOARD PREVIEW */}
+        {/* ========================================================= */}
+        <div className="mt-16 rounded-2xl border border-slate-800 bg-[#0C1222]/90 shadow-2xl shadow-cyan-950/50 p-4 sm:p-6 text-left max-w-5xl mx-auto backdrop-blur-xl">
+          {/* Mock Browser Header */}
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4 mb-5">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-red-500/80" />
+              <span className="w-3 h-3 rounded-full bg-amber-500/80" />
+              <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
+              <span className="ml-3 text-xs text-slate-400 font-mono">decidr.ai/affected?alert_id=102</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3" /> Invariant 2 Enforced (Zero Unapproved Writes)
+              </span>
+            </div>
+          </div>
+
+          {/* Active Premise Break Banner */}
+          <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/40 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Premise Invalidation Detected</span>
+                  <span className="text-xs text-slate-400">Meeting M2 &bull; Sam (00:04:22)</span>
                 </div>
-                <div className="h-6 bg-slate-200 rounded w-20"></div>
-                <div className="h-8 bg-slate-100 rounded w-24"></div>
+                <p className="text-sm font-semibold text-white mt-1">
+                  Vendor A standard tier does NOT support international recurring billing
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Undermines Premise P1 behind Decision D1 (Payments Architecture Kickoff)
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="px-3 py-1.5 rounded-lg bg-red-950/80 text-red-300 border border-red-500/40 text-xs font-bold font-mono">
+                42h + 8 pts Zombie Work
+              </span>
+            </div>
+          </div>
+
+          {/* Side-by-side Grounded Evidence Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-cyan-400" /> Original Assumption (Meeting M1)
+              </p>
+              <blockquote className="text-xs italic text-slate-300 border-l-2 border-cyan-500/60 pl-3 py-1">
+                &ldquo;Vendor A supports international recurring payments right out of the box on their standard API tier.&rdquo;
+              </blockquote>
+              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Cited in Decision D1</span>
+                <span className="text-emerald-400 font-medium">Exact Substring Match</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> New Dialogue (Meeting M2)
+              </p>
+              <blockquote className="text-xs italic text-slate-300 border-l-2 border-red-500/60 pl-3 py-1">
+                &ldquo;Vendor A informed us yesterday that recurring international billing requires their custom enterprise tier, which is unavailable until Q3.&rdquo;
+              </blockquote>
+              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Sam &bull; Utterance #42</span>
+                <span className="text-red-400 font-medium">Verdict: Undermines</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Blast Radius & Repair Plan Preview */}
+          <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Automated Repair Plan Formulated
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                3 Actions Prepared: Pause reminders for T1 & T2 &bull; Mark tickets at risk &bull; Notify owner (Ravi)
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-amber-400 font-medium">Requires Human Approval</span>
+              <span className="px-4 py-2 rounded-lg bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 text-xs font-semibold">
+                Preview Proposal
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* SECTION C: THE PROBLEM */}
+      {/* ========================================================= */}
+      <section id="problem" className="py-24 px-6 border-t border-slate-800/80 bg-[#090E1B]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">The Core Vulnerability</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3">
+              The Silent Invalidation Crisis
+            </h2>
+            <p className="text-slate-300 mt-4 text-base sm:text-lg">
+              Decisions rarely fail because the original choice was reckless. They fail because the hidden premises they were founded upon quietly stop being true weeks later.
+            </p>
+          </div>
+
+          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 flex flex-col justify-between">
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center font-bold text-lg mb-6">
+                  ✕
+                </div>
+                <h3 className="text-xl font-bold text-white">Traditional Meeting & Task Tools</h3>
+                <p className="text-sm text-slate-400 mt-3 leading-relaxed">
+                  Summarizers extract action items and dump bullet points into Slack or Jira. Once tickets are assigned, teams sprint forward blindly—even when a vendor API change or budget freeze in another meeting invalidated the entire project premise.
+                </p>
+              </div>
+              <ul className="mt-6 space-y-2.5 text-xs text-slate-400 border-t border-slate-800 pt-6">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Zero awareness of decision reasoning
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Zombie tasks continue burning sprint budget
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Failures discovered only at release deployment
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-8 rounded-2xl bg-gradient-to-b from-cyan-950/20 to-blue-950/20 border border-cyan-500/30 flex flex-col justify-between">
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-lg mb-6">
+                  ✓
+                </div>
+                <h3 className="text-xl font-bold text-white">The Decidr Approach</h3>
+                <p className="text-sm text-slate-300 mt-3 leading-relaxed">
+                  Decidr binds foundational premises directly to decisions and downstream tasks. When dialogue in any future meeting challenges an assumption, Decidr detects the break, computes the affected blast radius, and prepares an actionable repair plan for human approval.
+                </p>
+              </div>
+              <ul className="mt-6 space-y-2.5 text-xs text-cyan-200 border-t border-cyan-900/40 pt-6">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> Continuous background premise monitoring
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> Deterministic BFS dependency graph traversal
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> Zero unapproved external writes guaranteed
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* SECTION D: HOW IT WORKS */}
+      {/* ========================================================= */}
+      <section id="how-it-works" className="py-24 px-6 border-t border-slate-800/80 bg-[#070B14]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">The End-to-End Pipeline</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3">
+              How Decidr Protects Execution
+            </h2>
+            <p className="text-slate-300 mt-4 text-base">
+              A 6-stage intelligent pipeline running from dialogue evidence to human-in-the-loop repair.
+            </p>
+          </div>
+
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                step: "01",
+                title: "Import Meeting Transcripts",
+                desc: "Ingests TXT, WebVTT, SRT subtitles, and JSON diarization. Automatically normalizes speaker identities against your company roster.",
+                icon: FileText,
+              },
+              {
+                step: "02",
+                title: "Extract Decisions & Premises",
+                desc: "Two-pass structured extraction: Pass 1 discovers decisions & tasks; Pass 2 isolates foundational premises backed by exact verbatim substring quotes.",
+                icon: Layers,
+              },
+              {
+                step: "03",
+                title: "Continuous Premise Monitoring",
+                desc: "A background watchdog listens across every future conversation, matching active premises against dialogue remarks without needing decision citations.",
+                icon: Eye,
+              },
+              {
+                step: "04",
+                title: "Detect Quiet Invalidation",
+                desc: "Four-verdict classification (supports, undermines, unrelated, uncertain). Ambiguous remarks surface reviewer confirmation cards; breaks alert instantly.",
+                icon: AlertTriangle,
+              },
+              {
+                step: "05",
+                title: "Deterministic Impact Analysis",
+                desc: "Pure application code graph traversal walks confirmed dependencies, isolates disjoint scopes (e.g. India vs Europe), and tallies wasted hours and story points.",
+                icon: GitBranch,
+              },
+              {
+                step: "06",
+                title: "Human-Approved Repair Plan",
+                desc: "Generates typed repair proposals: pause reminders, notify assignees, mark tickets at risk. Zero external writes occur until approved.",
+                icon: Shield,
+              },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.step}
+                  className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 hover:border-cyan-500/40 transition-all hover:bg-slate-900/60 group"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-mono font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-950/60 border border-cyan-500/30">
+                      STEP {card.step}
+                    </span>
+                    <Icon className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                  </div>
+                  <h3 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
+                    {card.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-2.5 leading-relaxed">
+                    {card.desc}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* SECTION E: CORE FEATURES */}
+      {/* ========================================================= */}
+      <section id="features" className="py-24 px-6 border-t border-slate-800/80 bg-[#090E1B]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Platform Capabilities</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3">
+              Engineered for Enterprise Safety
+            </h2>
+            <p className="text-slate-300 mt-4 text-base">
+              Decidr is built on immutable software invariants, not fragile chatbot prompts.
+            </p>
+          </div>
+
+          <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              {
+                title: "AI Decision Extraction",
+                desc: "Two-pass pipeline discovering commitments and work items with confidence scores and timestamps.",
+                badge: "2-Pass",
+              },
+              {
+                title: "Evidence-Backed Premises",
+                desc: "Every premise links to an exact verbatim transcript quote. Hallucinated quotes are dropped and logged.",
+                badge: "Invariant 6",
+              },
+              {
+                title: "Silent Invalidation Detection",
+                desc: "Catches premise contradictions in later meetings even when the speaker never mentions the original decision.",
+                badge: "Watchdog",
+              },
+              {
+                title: "Premise Expiry Monitoring",
+                desc: "Tracks sandbox tokens, temporary waivers, and date-bounded assumptions that expire with simulated time.",
+                badge: "Temporal",
+              },
+              {
+                title: "Deterministic Impact Analysis",
+                desc: "BFS graph traversal handles circular links, deduplicates tasks, and isolates disjoint project regions.",
+                badge: "Pure Code",
+              },
+              {
+                title: "Zombie-Work Cost Quantification",
+                desc: "Calculates engineering hours and sprint story points at risk without guessing missing estimates.",
+                badge: "Invariant 10",
+              },
+              {
+                title: "Human-Approved Repair",
+                desc: "Changes execute only upon approval. Double-clicks are protected with SHA-256 idempotency.",
+                badge: "Invariant 2 & 3",
+              },
+              {
+                title: "Append-Only Audit Logging",
+                desc: "Every state transition writes an immutable audit row with actor, before/after states, and CSV export.",
+                badge: "Invariant 7",
+              },
+            ].map((feat, idx) => (
+              <div
+                key={idx}
+                className="p-5 rounded-xl bg-slate-900/50 border border-slate-800/80 hover:border-slate-700 transition-all"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] uppercase font-bold text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/20">
+                    {feat.badge}
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-white">{feat.title}</h4>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">{feat.desc}</p>
               </div>
             ))}
           </div>
-        ) : meetings.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-base font-semibold text-slate-900">No Meetings Uploaded</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto mb-4">
-              Upload your first meeting transcript (.vtt, .srt, .txt, or .json) to begin extracting decisions and tasks.
-            </p>
-            <button
-              onClick={() => setIsUploadOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
-            >
-              <Upload className="w-3.5 h-3.5" /> Upload Meeting Transcript
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm divide-y divide-slate-200">
-              <thead className="bg-slate-50/50 text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Meeting</th>
-                  <th className="px-5 py-3">Date</th>
-                  <th className="px-5 py-3">Project / Scope</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Pending Review</th>
-                  <th className="px-5 py-3">Speakers</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {meetings.map((m) => {
-                  return (
-                    <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-900">{m.title}</div>
-                        <div className="text-xs text-slate-400 font-mono">
-                          {m.transcript_ref?.split("/").pop()}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-600">
-                        {m.date}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="font-medium text-slate-800">{m.project}</div>
-                        {(m.region || m.release) && (
-                          <div className="text-xs text-slate-500">
-                            {[m.region && `Region: ${m.region}`, m.release && `Release: ${m.release}`]
-                              .filter(Boolean)
-                              .join(" • ")}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <StatusBadge status={m.status} error={m.error} />
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {m.pending_review_count && m.pending_review_count > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                            {m.pending_review_count} cards pending
-                          </span>
-                        ) : m.status === "review" || m.status === "done" ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> All reviewed
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {m.unmapped_speakers_count && m.unmapped_speakers_count > 0 ? (
-                          <button
-                            onClick={() => handleOpenSpeakerModal(m)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors"
-                          >
-                            <Users className="w-3.5 h-3.5 text-amber-600" />
-                            {m.unmapped_speakers_count} unmapped
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                            <Users className="w-3.5 h-3.5 text-slate-400" />
-                            Mapped
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-right space-x-2">
-                        {m.status === "uploaded" && (
-                          <button
-                            onClick={() => handleProcess(m.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs"
-                          >
-                            <Play className="w-3 h-3" /> Process
-                          </button>
-                        )}
-                        {m.status === "processing" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-indigo-700 font-medium px-2 py-1 bg-indigo-50 rounded">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Processing...
-                          </span>
-                        )}
-                        {m.status === "failed" && (
-                          <button
-                            onClick={() => handleProcess(m.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 shadow-2xs"
-                          >
-                            <RotateCcw className="w-3 h-3" /> Retry
-                          </button>
-                        )}
-                        {(m.status === "review" || m.status === "done") && (
-                          <Link
-                            href="/review"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
-                          >
-                            Review Queue <ChevronRight className="w-3.5 h-3.5" />
-                          </Link>
-                        )}
-                        <button
-                          onClick={() => handleDeleteMeeting(m.id, m.title)}
-                          title="Purge transcript & derived items (Privacy DELETE)"
-                          className="inline-flex items-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* MODAL 1: Upload Meeting Dialog */}
-      {isUploadOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                <Upload className="w-5 h-5 text-indigo-600" />
-                Upload Meeting Transcript
-              </div>
-              <button
-                onClick={() => setIsUploadOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUploadSubmit} className="space-y-4 text-sm">
-              {/* File picker */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Transcript File (.vtt, .srt, .txt, .json) *
-                </label>
-                <input
-                  type="file"
-                  accept=".vtt,.srt,.txt,.json"
-                  required
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setUploadFile(f);
-                      if (!title) {
-                        setTitle(f.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "));
-                      }
-                    }
-                  }}
-                  className="w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-200 rounded-lg p-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Meeting Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Payments Kickoff Sync"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Meeting Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={dateVal}
-                    onChange={(e) => setDateVal(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Project *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Payments Revamp"
-                    value={project}
-                    onChange={(e) => setProject(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Region (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. India, Europe"
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Release (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. v1.0, Q4"
-                    value={release}
-                    onChange={(e) => setRelease(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsUploadOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUploading}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm disabled:opacity-50"
-                >
-                  {isUploading ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-3.5 h-3.5" /> Upload & Parse
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
-      )}
+      </section>
 
-      {/* MODAL 2: Unmapped Speakers Dialog */}
-      {speakerModalMeeting && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                <Users className="w-5 h-5 text-amber-600" />
-                Map Unmapped Speakers
+      {/* ========================================================= */}
+      {/* SECTION F: SECURITY */}
+      {/* ========================================================= */}
+      <section id="security" className="py-24 px-6 border-t border-slate-800/80 bg-[#070B14]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Enterprise Governance</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3">
+              Zero Unapproved External Writes
+            </h2>
+            <p className="text-slate-300 mt-4 text-base">
+              Security is not a feature toggle in Decidr; it is an architectural invariant.
+            </p>
+          </div>
+
+          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5" />
               </div>
-              <button
-                onClick={() => setSpeakerModalMeeting(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <h3 className="text-base font-bold text-white">Multi-Tenant User & Project Isolation</h3>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Every project has an authorized owner or membership relationship. API endpoints enforce authorization on the backend: User A cannot view User B&apos;s transcripts, decisions, or approve User B&apos;s repairs.
+                </p>
+              </div>
             </div>
 
-            <p className="text-xs text-slate-500 mb-4">
-              Meeting: <strong>{speakerModalMeeting.title}</strong>. Map raw transcript names to team members in the roster. Mapping updates all utterances across the meeting and writes an audit log.
-            </p>
-
-            {unmappedSpeakers.length === 0 ? (
-              <div className="text-center py-6 text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-1 text-emerald-600" />
-                <p className="font-semibold text-xs">All speakers mapped successfully!</p>
+            <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5" />
               </div>
-            ) : (
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                {unmappedSpeakers.map((s) => (
-                  <div
-                    key={s.speaker_raw}
-                    className="p-3 rounded-lg border border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-800 text-sm">{s.speaker_raw}</span>
-                      <span className="text-slate-400 ml-2">({s.count} utterances)</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="border border-slate-300 rounded p-1.5 text-xs bg-white focus:ring-1 focus:ring-indigo-500"
-                        value={speakerSelections[s.speaker_raw] || ""}
-                        onChange={(e) =>
-                          setSpeakerSelections({
-                            ...speakerSelections,
-                            [s.speaker_raw]: Number(e.target.value),
-                          })
-                        }
-                      >
-                        <option value="">-- Choose Person --</option>
-                        {roster.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.email})
-                          </option>
-                        ))}
-                      </select>
-
-                      <button
-                        onClick={() => handleSaveSpeakerMapping(s.speaker_raw)}
-                        disabled={isSavingSpeaker || !speakerSelections[s.speaker_raw]}
-                        className="px-2.5 py-1.5 rounded font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
-                      >
-                        Map
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <h3 className="text-base font-bold text-white">Approval-Gated External Integrations</h3>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Proposals in draft or rejected states produce zero calls to issue trackers, SMTP, or Slack. Every external action carries a unique SHA-256 idempotency key: double-clicks create zero duplicate tickets.
+                </p>
               </div>
-            )}
+            </div>
 
-            <div className="flex justify-end pt-4 mt-4 border-t border-slate-100">
-              <button
-                onClick={() => setSpeakerModalMeeting(null)}
-                className="px-4 py-2 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg"
-              >
-                Close
-              </button>
+            <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Evidence Traceability (Invariant 6)</h3>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Every extracted decision, task, and premise is validated against the raw transcript text. If an LLM fabricates a quote, the quote verification engine immediately drops it and logs the anomaly.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+                <Server className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">GDPR Article 17 Right-to-Erasure</h3>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Endpoint <code className="text-cyan-400 bg-slate-800 px-1 py-0.5 rounded font-mono text-[11px]">DELETE /meetings/&#123;id&#125;</code> securely purges raw transcripts, audio, and derived items, keeping only an append-only non-content audit record.
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </section>
 
-      {/* TOAST SYSTEM */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`pointer-events-auto p-3.5 rounded-lg shadow-lg border text-xs font-medium flex items-center gap-2.5 transition-all ${
-              toast.type === "success"
-                ? "bg-emerald-950 text-emerald-100 border-emerald-800"
-                : toast.type === "error"
-                ? "bg-rose-950 text-rose-100 border-rose-800"
-                : "bg-slate-900 text-slate-100 border-slate-800"
-            }`}
-          >
-            {toast.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
-            {toast.type === "error" && <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
-            {toast.type === "info" && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
-            <span className="flex-1">{toast.message}</span>
-            <button
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-slate-400 hover:text-white"
+      {/* ========================================================= */}
+      {/* SECTION G: FINAL CTA */}
+      {/* ========================================================= */}
+      <section className="py-24 px-6 border-t border-slate-800/80 bg-gradient-to-b from-[#070B14] to-[#0A1020] text-center relative">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">
+            Stop working on decisions that no longer make sense.
+          </h2>
+          <p className="mt-6 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
+            Give your engineering and product teams continuous assumption monitoring and prevent wasted sprint cycles.
+          </p>
+
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-base shadow-xl shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all hover:scale-[1.02]"
             >
-              <X className="w-3.5 h-3.5" />
-            </button>
+              Get Started with Decidr
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-semibold text-base hover:bg-slate-800 hover:text-white transition-all"
+            >
+              Explore Live Demo
+            </Link>
           </div>
-        ))}
-      </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* SECTION H: FOOTER */}
+      {/* ========================================================= */}
+      <footer className="border-t border-slate-800/80 bg-[#050811] py-14 px-6 text-sm text-slate-400">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                D
+              </div>
+              <span className="font-bold text-base text-white">Decidr</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+              Decisions don&apos;t fail. Their assumptions do.
+              Continuous decision intelligence and premise monitoring for modern engineering organizations.
+            </p>
+          </div>
+
+          <div>
+            <h5 className="font-semibold text-white text-xs uppercase tracking-wider mb-3">Product</h5>
+            <ul className="space-y-2 text-xs">
+              <li><Link href="/dashboard" className="hover:text-cyan-400 transition-colors">Meeting Hub</Link></li>
+              <li><Link href="/review" className="hover:text-cyan-400 transition-colors">Review Queue</Link></li>
+              <li><Link href="/affected" className="hover:text-cyan-400 transition-colors">Affected Work</Link></li>
+              <li><Link href="/ledger" className="hover:text-cyan-400 transition-colors">Decision Ledger</Link></li>
+              <li><Link href="/my-week" className="hover:text-cyan-400 transition-colors">My Week</Link></li>
+              <li><Link href="/eval" className="hover:text-cyan-400 transition-colors">Evaluation Harness</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h5 className="font-semibold text-white text-xs uppercase tracking-wider mb-3">Documentation</h5>
+            <ul className="space-y-2 text-xs">
+              <li><a href="#how-it-works" className="hover:text-cyan-400 transition-colors">Architecture Overview</a></li>
+              <li><a href="#security" className="hover:text-cyan-400 transition-colors">Security Invariants</a></li>
+              <li><Link href="/audit" className="hover:text-cyan-400 transition-colors">Audit Trail</Link></li>
+              <li><a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">FastAPI Swagger Docs</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h5 className="font-semibold text-white text-xs uppercase tracking-wider mb-3">Governance</h5>
+            <ul className="space-y-2 text-xs">
+              <li><span className="text-slate-400">GDPR Article 17 Compliant</span></li>
+              <li><span className="text-slate-400">NIST SP 800-132 PBKDF2</span></li>
+              <li><span className="text-slate-400">Zero Unapproved Writes</span></li>
+              <li><span className="text-slate-500">&copy; 2026 Decidr Inc. All rights reserved.</span></li>
+            </ul>
+          </div>
+        </div>
+      </footer>
     </div>
   );
-}
-
-function StatusBadge({ status, error }: { status: string; error?: string | null }) {
-  switch (status) {
-    case "uploaded":
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
-          Uploaded
-        </span>
-      );
-    case "processing":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">
-          <RefreshCw className="w-3 h-3 animate-spin" /> Processing
-        </span>
-      );
-    case "review":
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
-          Review Ready
-        </span>
-      );
-    case "done":
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
-          Done
-        </span>
-      );
-    case "failed":
-      return (
-        <span
-          title={error || "Processing failed"}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800 cursor-help"
-        >
-          <AlertCircle className="w-3 h-3 text-rose-600" />
-          Failed {error ? `(${error.slice(0, 20)}...)` : ""}
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
-          {status}
-        </span>
-      );
-  }
 }

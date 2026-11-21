@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/sidebar";
+import { AppLayoutShell } from "@/components/app-layout-shell";
 
 export const metadata: Metadata = {
-  title: "Decidr - Meeting-to-Execution Agent",
-  description: "Decision-change safety and execution repair platform",
+  title: "Decidr — Decisions don't fail. Their assumptions do.",
+  description: "AI-powered decision intelligence platform that monitors the reasoning behind team decisions and prevents zombie work.",
 };
 
 export default function RootLayout({
@@ -14,15 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-100/50 antialiased font-sans">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 ml-64 p-8">
-            <div className="max-w-6xl mx-auto">
-              {children}
-            </div>
-          </main>
-        </div>
+      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased font-sans">
+        <AppLayoutShell>{children}</AppLayoutShell>
       </body>
     </html>
   );

@@ -18,6 +18,8 @@ from app.models.enums import (
 )
 from app.models.models import (
     ReadOnlyAuditLogError,
+    User,
+    ProjectMember,
     Person,
     Meeting,
     Utterance,
@@ -54,6 +56,8 @@ __all__ = [
     "ReminderState",
     "ReminderChannel",
     "ReadOnlyAuditLogError",
+    "User",
+    "ProjectMember",
     "Person",
     "Meeting",
     "Utterance",

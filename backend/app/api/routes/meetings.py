@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db, SessionLocal
 from app.models.enums import MeetingStatus, ItemType, ReviewState, AlertState
-from app.models.models import Meeting, Utterance, Person, Item, Alert
+from app.models.models import Meeting, Utterance, Person, Item, Alert, User, ProjectMember
 from app.schemas.schemas import MeetingRead, UtteranceRead, PersonRead
 from app.services.ingestion import ingest_meeting, patch_meeting_speaker
 from app.services.extraction import extract_meeting_items
+from app.api.deps import get_current_user, verify_project_access
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -43,6 +44,7 @@ async def create_meeting(
     region: Optional[str] = Form(None),
     release: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload and ingest a meeting transcript file (.vtt, .srt, .txt, .json).
@@ -94,6 +96,16 @@ async def create_meeting(
         region=region,
         release=release,
     )
+    meeting.owner_id = current_user.id
+    pm = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project == project, ProjectMember.user_id == current_user.id)
+        .first()
+    )
+    if not pm:
+        db.add(ProjectMember(project=project, user_id=current_user.id, role="owner"))
+    db.commit()
+    db.refresh(meeting)
     return meeting
 
 
@@ -169,20 +181,30 @@ def get_meeting_unmapped_speakers(meeting_id: int, db: Session = Depends(get_db)
 
 
 @router.get("/{meeting_id}", response_model=MeetingRead)
-def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
+def get_meeting(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Get single meeting details."""
     meeting = db.query(Meeting).filter_by(id=meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    verify_project_access(meeting.project, current_user, db)
     return meeting
 
 
 @router.get("/{meeting_id}/utterances", response_model=List[UtteranceDetailRead])
-def get_meeting_utterances(meeting_id: int, db: Session = Depends(get_db)):
+def get_meeting_utterances(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Get timeline of utterances for a meeting with speaker resolution."""
     meeting = db.query(Meeting).filter_by(id=meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    verify_project_access(meeting.project, current_user, db)
 
     utterances = (
         db.query(Utterance)
@@ -236,6 +258,7 @@ def process_meeting(
     meeting_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Run two-pass extraction on meeting transcript in the background.
@@ -244,6 +267,7 @@ def process_meeting(
     meeting = db.query(Meeting).filter_by(id=meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    verify_project_access(meeting.project, current_user, db)
 
     meeting.status = MeetingStatus.processing
     db.commit()
@@ -283,6 +307,7 @@ def map_unmapped_speaker(
 def delete_meeting(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Privacy & Right-to-be-Forgotten Endpoint (Task 17 Requirement 5).
@@ -298,6 +323,7 @@ def delete_meeting(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meeting #{meeting_id} not found",
         )
+    verify_project_access(meeting.project, current_user, db)
 
     # 1. Delete derived alerts and change proposals
     alerts = db.query(Alert).filter(Alert.meeting_id == meeting_id).all()

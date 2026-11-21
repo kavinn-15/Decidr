@@ -58,3 +58,29 @@ def init_db(engine_instance: Engine | None = None) -> None:
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE meetings ADD COLUMN owner_id INTEGER;"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # Ensure default demo user exists for seamless demo experience and backward compatibility
+    with Session(bind=eng) as session:
+        try:
+            from app.models.models import User
+            from app.core.security import hash_password
+            demo_user = session.query(User).filter(User.email == "demo@decidr.ai").first()
+            if not demo_user:
+                demo_user = User(
+                    email="demo@decidr.ai",
+                    full_name="Decidr Demo Admin",
+                    hashed_password=hash_password("DecidrDemo2026!"),
+                    is_verified=True,
+                    is_active=True,
+                    role="admin",
+                )
+                session.add(demo_user)
+                session.commit()
+        except Exception:
+            session.rollback()
+

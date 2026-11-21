@@ -5,10 +5,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.models import ChangeProposal, ChangeAction, Task, Decision
+from app.models.models import ChangeProposal, ChangeAction, Task, Decision, User
 from app.models.enums import ProposalState, ActionState, ActionType
 from app.services.executor import _build_action_payload, execute_proposal, ProposalNotApprovedError
 from app.services.audit import log
+from app.api.deps import get_current_user, verify_project_access
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
@@ -38,6 +39,7 @@ class PreviewProposalRequest(BaseModel):
 def get_proposal(
     proposal_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Returns proposal metadata and every action with its target and the exact payload that will be sent.
@@ -45,6 +47,10 @@ def get_proposal(
     proposal = db.get(ChangeProposal, proposal_id)
     if not proposal:
         raise HTTPException(status_code=404, detail=f"Proposal #{proposal_id} not found")
+
+    alert = proposal.alerts[0] if proposal.alerts else None
+    if alert and alert.meeting:
+        verify_project_access(alert.meeting.project, current_user, db)
 
     actions_data = []
     for action in proposal.actions:
@@ -168,6 +174,7 @@ def approve_proposal(
     proposal_id: int,
     payload: ApproveProposalRequest = ApproveProposalRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Approves the proposal with a list of action ids (partial approval allowed) and optional edited payloads.
@@ -176,6 +183,10 @@ def approve_proposal(
     proposal = db.get(ChangeProposal, proposal_id)
     if not proposal:
         raise HTTPException(status_code=404, detail=f"Proposal #{proposal_id} not found")
+
+    alert = proposal.alerts[0] if proposal.alerts else None
+    if alert and alert.meeting:
+        verify_project_access(alert.meeting.project, current_user, db)
 
     if proposal.state == ProposalState.rejected:
         raise HTTPException(
@@ -255,6 +266,7 @@ def reject_proposal(
     proposal_id: int,
     payload: RejectProposalRequest = RejectProposalRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Rejects the proposal and all its non-executed actions. Zero external calls are made (Invariant 2).
@@ -262,6 +274,10 @@ def reject_proposal(
     proposal = db.get(ChangeProposal, proposal_id)
     if not proposal:
         raise HTTPException(status_code=404, detail=f"Proposal #{proposal_id} not found")
+
+    alert = proposal.alerts[0] if proposal.alerts else None
+    if alert and alert.meeting:
+        verify_project_access(alert.meeting.project, current_user, db)
 
     prev_state = proposal.state.value
     proposal.state = ProposalState.rejected
