@@ -438,4 +438,64 @@ npm --prefix frontend run build
 ### Open Issues / Deferred
 - None from Task 9.
 
+---
+
+## Task 10: Cross-Decision Conflict & Supersession Detection
+### What Was Built
+- **Conflict & Supersession Engine (`backend/app/services/conflicts.py`)**:
+  - `detect_conflicts_for_decision(db, decision, actor, max_candidates=5)`:
+    - **Scope Pre-filtering (0 LLM Calls on Disjoint Scopes)**: Evaluates candidate earlier active decisions in the same project. If `scope_overlap == "disjoint"`, the candidate is skipped immediately without making an LLM call.
+    - **Top 5 Ranking**: Ranks eligible candidates via `ledger.search` prior to judgment.
+    - **LLM Judge**: Calls versioned prompt `judge_decision_conflict.v1.txt` returning verdict in `{"contradicts", "supersedes", "duplicates", "consistent", "unrelated"}`, confidence, explanation, and exact quotes.
+    - **Invariant 6 (Verbatim Substring Validation)**: Verifies that `old_quote` is an exact substring of the candidate decision/evidence quote/premises and `new_quote` is an exact substring of the new decision. Drops and logs any quote hallucinations.
+    - **Behavior Routing**:
+      - `contradicts` / `supersedes` with confidence >= 0.7: Creates an open `Alert` (`kind=AlertKind.conflict`). For `supersedes`, links decisions with an unconfirmed candidate link (`relation=supersedes`).
+      - `duplicates` with confidence >= 0.7: Creates a low-priority `Alert` (`verdict="possible_duplicate"`).
+      - Ambiguous confidence (0.4 to 0.7): Creates an `Alert` (`verdict="ambiguous_<verdict>"`) requesting reviewer evaluation.
+      - `consistent` / `unrelated`: Creates nothing (0 alerts).
+  - `approve_supersedes_alert(db, alert_id, actor)`:
+    - Sets the old decision `status=superseded`.
+    - Creates and confirms a `supersedes` link in the knowledge graph.
+    - Marks open tasks linked to the old decision as `TaskStatus.at_risk`.
+    - Calls `notify_blast_radius_service` hook for downstream impact analysis.
+    - Confirms the alert and records append-only audit log entries.
+  - `notify_blast_radius_service(db, decision, actor)`:
+    - Clearly named integration hook for the blast-radius service.
+
+- **Prompt Template (`backend/app/llm/prompts/judge_decision_conflict.v1.txt`)**:
+  - Explicit definition of conflict, supersession, duplication, consistency, and unrelatedness adhering to explicit project, region, and release scopes.
+
+- **Review Queue Integration (`backend/app/api/routes/review.py`)**:
+  - Automatically invokes `detect_conflicts_for_decision` when a decision is approved via `POST /review/decisions/{id}/approve`.
+  - Automatically triggers `approve_supersedes_alert` when a supersedes alert is confirmed via `POST /review/alerts/{id}/confirm`.
+
+- **Unit & Integration Tests (`backend/tests/test_conflicts.py`)**:
+  - `test_europe_decision_vs_d1_yields_no_alert_and_zero_llm_calls`: M2 Europe decision vs D1 yields 0 alerts and makes exactly 0 LLM calls due to disjoint regional scopes.
+  - `test_m3_launch_date_change_yields_supersedes_alert_against_d2`: M3 launch date change yields a supersedes alert against D2; confirming it supersedes D2, establishes confirmed supersedes link, and marks open tasks `at_risk`.
+  - `test_consistent_decisions_yield_nothing`: Consistent decisions yield 0 alerts.
+  - `test_quote_verification_rejects_hallucinations`: Hallucinated quotes fail substring verification and are dropped.
+  - `test_ambiguous_conflict_creates_card_for_reviewer`: 0.4 to 0.7 confidence creates ambiguous review card.
+  - `test_duplicate_decision_creates_possible_duplicate_alert`: Duplicate decisions yield low-priority duplicate card.
+  - Full suite passes: **59/59 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run conflicts test suite
+.venv\Scripts\pytest.exe backend\tests\test_conflicts.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `conflicts.py`, candidate target decisions for supersedes alerts are referenced in `alert.explanation` via an invisible HTML comment tag `<!-- old_decision_id:<id> -->` for lossless downstream resolution.
+
+### Open Issues / Deferred
+- Blast radius cascading traversal and automated repair proposal generation deferred to subsequent milestone.
+
+
 

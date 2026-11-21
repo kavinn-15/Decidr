@@ -149,7 +149,10 @@ class LLMAdapter:
         mock_obj = {}
         for fname, field in schema.model_fields.items():
             ann = field.annotation
-            if ann is str or str in getattr(ann, "__args__", ()):
+            args = getattr(ann, "__args__", ())
+            if "Literal" in str(ann) and args:
+                mock_obj[fname] = args[0]
+            elif ann is str or str in args:
                 mock_obj[fname] = "mock_value"
             elif ann is int or int in getattr(ann, "__args__", ()):
                 mock_obj[fname] = 1
@@ -303,7 +306,7 @@ class LLMAdapter:
             t0 = time.perf_counter()
 
             # Invoke provider
-            if provider_name == "fake":
+            if provider_name == "fake" or bool(self.fake_queue):
                 raw_text, tokens = self._call_fake(prompt_name, attempt_prompt, schema)
             elif provider_name == "gemini":
                 raw_text, tokens = self._call_gemini(model_name, attempt_prompt)

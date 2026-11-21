@@ -1,3 +1,4 @@
+import math
 import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
@@ -178,6 +179,16 @@ def search(
             corpus.append(doc_tokens if doc_tokens else [""])
 
         bm25 = BM25Okapi(corpus)
+        # Apply standard Lucene-style IDF smoothing: ln(1.0 + (N - freq + 0.5) / (freq + 0.5))
+        # to prevent negative or zero IDF scores on small corpora.
+        doc_counts: Dict[str, int] = {}
+        for doc in corpus:
+            for w in set(doc):
+                doc_counts[w] = doc_counts.get(w, 0) + 1
+        bm25.idf = {
+            w: math.log(1.0 + (bm25.corpus_size - f + 0.5) / (f + 0.5))
+            for w, f in doc_counts.items()
+        }
         scores = bm25.get_scores(query_tokens)
 
         scored = list(zip(candidates, scores))

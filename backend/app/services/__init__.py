@@ -16,6 +16,11 @@ from app.services.ledger import (
     scope_overlap,
     search as search_decisions,
 )
+from app.services.conflicts import (
+    detect_conflicts_for_decision,
+    approve_supersedes_alert,
+    notify_blast_radius_service,
+)
 
 __all__ = [
     "log",
@@ -31,4 +36,7 @@ __all__ = [
     "neighbors",
     "scope_overlap",
     "search_decisions",
+    "detect_conflicts_for_decision",
+    "approve_supersedes_alert",
+    "notify_blast_radius_service",
 ]

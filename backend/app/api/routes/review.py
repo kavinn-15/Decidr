@@ -318,6 +318,14 @@ def approve_decision(
     )
     db.commit()
 
+    # Detect conflicts / supersession against earlier active decisions
+    from app.services.conflicts import detect_conflicts_for_decision
+    try:
+        detect_conflicts_for_decision(db, decision, actor=actor)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Error checking decision conflicts upon approval: {e}")
+
     return {
         "status": "approved",
         "item_id": item.id,
@@ -844,6 +852,16 @@ def confirm_alert(
     alert = db.get(Alert, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
+
+    # If it is a supersedes alert, run the full supersedes workflow
+    if alert.verdict and "supersedes" in alert.verdict.lower():
+        from app.services.conflicts import approve_supersedes_alert
+        try:
+            confirmed_alert = approve_supersedes_alert(db, alert_id, actor=payload.actor)
+            db.commit()
+            return {"status": "confirmed", "alert_id": confirmed_alert.id, "verdict": confirmed_alert.verdict}
+        except Exception as e:
+            logger.warning(f"Failed to execute supersedes approval workflow: {e}")
 
     before = {"state": alert.state.value}
     alert.state = AlertState.confirmed
