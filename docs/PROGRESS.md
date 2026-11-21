@@ -38,7 +38,10 @@ decidr/
 │   │   ├── llm/
 │   │   │   ├── __init__.py
 │   │   │   ├── adapter.py
+│   │   │   ├── exceptions.py
 │   │   │   └── prompts/
+│   │   │       ├── extract_items.v1.txt
+│   │   │       └── judge_conflict.v1.txt
 │   │   ├── models/
 │   │   │   ├── __init__.py
 │   │   │   ├── enums.py
@@ -48,17 +51,21 @@ decidr/
 │   │   │   └── schemas.py
 │   │   ├── services/
 │   │   │   ├── __init__.py
-│   │   │   └── audit.py
+│   │   │   ├── audit.py
+│   │   │   └── ingestion.py
 │   │   └── api/
 │   │       ├── __init__.py
 │   │       └── routes/
-│   │           └── __init__.py
+│   │           ├── __init__.py
+│   │           └── meetings.py
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   ├── conftest.py
 │   │   ├── test_health.py
 │   │   ├── test_models.py
-│   │   └── test_seed.py
+│   │   ├── test_seed.py
+│   │   ├── test_llm.py
+│   │   └── test_ingestion.py
 │   └── requirements.txt
 └── frontend/
     ├── app/
@@ -122,31 +129,56 @@ decidr/
 - **Held-Out Evaluation Transcripts** in `backend/seed/heldout/`:
   - Separate project "Mobile App Release" with dedicated roster (`roster_heldout.json`), transcripts `h1_2026-10-05.vtt` and `h2_2026-10-12.vtt`, and ground truth labels (`gold_labels_heldout.json`).
 - **Comprehensive Ground Truth** in `backend/seed/gold_labels.json`:
-  - Complete specifications for decisions, premises, actions, links, expected alerts, multi-hop blast radius (affected and explicitly unaffected tasks with rationales), and repair actions.
+  - Complete specifications for decisions, premises, actions, links, expected alerts, multi-hop blast radius, and repair actions.
 - **Database Seeding Script** in `scripts/seed.py`:
-  - Parses WebVTT cues (idx, start_ts, speaker attribution) and loads roster and meetings/utterances into the database (transcripts only, not labels).
+  - Parses WebVTT cues and loads roster and meetings/utterances into the database.
 - **Verification Tests** in `backend/tests/test_seed.py`:
   - Verified Invariant 6: Every evidence quote in `gold_labels.json` and `gold_labels_heldout.json` is a 100% exact verbatim substring of the raw transcripts.
-  - Verified `scripts/seed.py` successfully populates database tables.
+
+---
+
+## Task 4: LLM Adapter & Transcript Ingestion Engine
+### What Was Built
+- **LLM Adapter System** (`backend/app/llm/adapter.py`):
+  - `complete_json(prompt_name, variables, schema, model=None, provider=None) -> T`: Generates structured completions validated against Pydantic models.
+  - Supported Providers: `fake` (fixture queue and synthesis), `gemini` (Google Gemini API with zero temperature), and `anthropic` (Anthropic Claude API with zero temperature).
+  - Modes via `LLM_MODE`: `live` (invokes and caches), `record` (invokes and stores), and `replay` (cache-only; raises `CacheMissError` on miss).
+  - Deterministic Disk Caching: Keys calculated as `SHA256(model + rendered_prompt + serialized_inputs)` and stored as JSON under `backend/.llm_cache/`.
+  - Schema Validation Retry Loop: Retries up to 2 times upon schema validation or JSON decode failures, feeding the error description back into the prompt.
+  - Logging: Records model identifier, request latency in milliseconds, and token metrics (`prompt_tokens`, `completion_tokens`, `total_tokens`).
+  - Versioned Prompts: Plain text prompt templates stored in `backend/app/llm/prompts/` with `# Version:` headers (`extract_items.v1.txt`, `judge_conflict.v1.txt`).
+- **Transcript Ingestion Service** (`backend/app/services/ingestion.py`):
+  - Multi-Format Transcript Parsing: Supports `.vtt` (WebVTT), `.srt` (SubRip), `.txt` (timestamped/speaker formatted), and `.json` (structured arrays).
+  - Fuzzy Speaker Mapping: Resolves raw speaker names against the roster via exact matching, case-insensitive matching, first-name matching, and initials matching.
+  - Flags Unmapped Speakers: Unresolved speakers retain `person_id=None` and trigger a meeting error flag for reviewer attention.
+  - Ingestion Orchestration: `ingest_meeting(...)` records parsed utterances and logs audit entries.
+  - Speaker Re-mapping: `patch_meeting_speaker(...)` re-maps an unmapped speaker across an entire meeting and updates audit logs.
+- **FastAPI Endpoints** (`backend/app/api/routes/meetings.py`):
+  - `POST /meetings`: Uploads transcript file, ingests utterances, maps speakers, and sets meeting status.
+  - `GET /meetings`: Lists meetings with utterance counts and unmapped speaker flags.
+  - `GET /meetings/{id}`: Returns detailed meeting metadata.
+  - `GET /meetings/{id}/utterances`: Returns transcript timeline with speaker attribution and unmapped status.
+  - `PATCH /meetings/{id}/speakers`: Re-maps a speaker raw identifier to a team member across the meeting.
+- **Pytest Suites**:
+  - `backend/tests/test_llm.py`: Tests cache hits, replay misses, and schema retry mechanisms.
+  - `backend/tests/test_ingestion.py`: Tests all 4 parsing formats, fuzzy speaker matching, unmapped speaker flags, and REST API endpoints.
 
 ### How to Run
-1. **Run Seeding**:
-   ```bash
-   make seed
-   # or
-   .venv\Scripts\python.exe scripts\seed.py
-   ```
-2. **Run Full Test Suite**:
+1. **Run Full Test Suite**:
    ```bash
    make test
    # or
    .venv\Scripts\pytest.exe backend\tests -v
    ```
+2. **Start Backend Server**:
+   ```bash
+   cd backend
+   ..\.venv\Scripts\uvicorn.exe app.main:app --reload --port 8000
+   ```
 
 ### Assumptions Made
-- WebVTT cue speaker labels follow `Speaker: <text>` format inside cue payloads.
-- Held-out transcripts are reserved strictly for unseen evaluation and must not be used during prompt engineering.
-- All evidence quotes strictly adhere to Invariant 6 (exact substring matching).
+- Prompt template files without an explicit file extension fallback to `.v1.txt` or `.txt`.
+- Unmapped speakers leave `person_id=None` on the utterance and assign `error="Contains unmapped speaker(s)"` to the meeting until resolved via the PATCH endpoint.
 
 ### Open Issues / Deferred
-- LLM extraction prompt engineering and extraction service implementation scheduled for next task.
+- Extraction pipeline integration (invoking LLM adapter to extract decisions, premises, and actions from ingested meetings) to be implemented in Task 5.
