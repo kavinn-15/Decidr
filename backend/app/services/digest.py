@@ -273,6 +273,94 @@ def build_digest(
 
     plain_text = "\n".join(text_lines)
 
+    # Prepare HTML section contents cleanly without fragile nested f-strings
+    # 5. Work Resting on Broken or Shaky Premises (Surfaced on top if present)
+    if sections_data["work_resting_on_broken_or_shaky_premises"]:
+        shaky_items_html = "".join(
+            f'<div class="alert-box">\n'
+            f'  <strong>Task #{w["task_id"]}: {w["task_title"]}</strong><br>\n'
+            f'  <span class="badge badge-{w["premise_status"]}">{w["premise_status"]}</span>\n'
+            f'  <span>{w["reason"]}</span>\n'
+            f'</div>\n'
+            for w in sections_data["work_resting_on_broken_or_shaky_premises"]
+        )
+        shaky_section_html = (
+            f'<div class="section" style="background: #fff5f5;">\n'
+            f'  <div class="section-title" style="color: #be123c;">⚠️ Work Resting on Broken or Shaky Premises</div>\n'
+            f'  {shaky_items_html}'
+            f'</div>\n'
+        )
+    else:
+        shaky_section_html = ""
+
+    # 1. Due This Week
+    if sections_data["due_this_week"]:
+        due_items_html = "".join(
+            f'<div class="task-item">\n'
+            f'  <strong>{t["title"]}</strong> — Due {t["due_date"]}\n'
+            f'  <span class="badge" style="background:#e0f2fe; color:#0369a1;">{t["status"]}</span>\n'
+            f'</div>\n'
+            for t in sections_data["due_this_week"]
+        )
+        due_section_html = (
+            f'<div class="section">\n'
+            f'  <div class="section-title">Due This Week</div>\n'
+            f'  {due_items_html}'
+            f'</div>\n'
+        )
+    else:
+        due_section_html = (
+            '<div class="section">\n'
+            '  <div class="section-title">Due This Week</div>\n'
+            '  <p style="color:#64748b; font-size:13px; margin:0;">No tasks due this week.</p>\n'
+            '</div>\n'
+        )
+
+    # 2. Overdue Tasks
+    if sections_data["overdue"]:
+        overdue_items_html = "".join(
+            f'<div class="task-item" style="border-left: 3px solid #ef4444;">\n'
+            f'  <span class="badge badge-overdue">Overdue</span>\n'
+            f'  <strong>{t["title"]}</strong> (Due {t["due_date"]})\n'
+            f'</div>\n'
+            for t in sections_data["overdue"]
+        )
+        overdue_section_html = (
+            f'<div class="section">\n'
+            f'  <div class="section-title">Overdue Tasks</div>\n'
+            f'  {overdue_items_html}'
+            f'</div>\n'
+        )
+    else:
+        overdue_section_html = (
+            '<div class="section">\n'
+            '  <div class="section-title">Overdue Tasks</div>\n'
+            '  <p style="color:#64748b; font-size:13px; margin:0;">No overdue tasks.</p>\n'
+            '</div>\n'
+        )
+
+    # 3. Decisions Affecting You
+    if sections_data["decisions_affecting_you"]:
+        decisions_items_html = "".join(
+            f'<div class="task-item">\n'
+            f'  <strong>D{d["id"]}: {d["text"]}</strong> ({d["status"]})\n'
+            f'</div>\n'
+            for d in sections_data["decisions_affecting_you"]
+        )
+        decisions_section_html = (
+            f'<div class="section">\n'
+            f'  <div class="section-title">Decisions Affecting You</div>\n'
+            f'  {decisions_items_html}'
+            f'</div>\n'
+        )
+    else:
+        decisions_section_html = (
+            '<div class="section">\n'
+            '  <div class="section-title">Decisions Affecting You</div>\n'
+            '  <p style="color:#64748b; font-size:13px; margin:0;">No decisions linked to your current work.</p>\n'
+            '</div>\n'
+        )
+
     # Render HTML
     html_markup = f"""<!DOCTYPE html>
 <html>
@@ -305,56 +393,16 @@ def build_digest(
     </div>
 
     <!-- 5. Work Resting on Broken or Shaky Premises (Surfaced on top if present) -->
-    {f'''
-    <div class="section" style="background: #fff5f5;">
-      <div class="section-title" style="color: #be123c;">⚠️ Work Resting on Broken or Shaky Premises</div>
-      {"".join(f"""
-      <div class="alert-box">
-        <strong>Task #{w['task_id']}: {w['task_title']}</strong><br>
-        <span class="badge badge-{w['premise_status']}">{w['premise_status']}</span>
-        <span>{w['reason']}</span>
-      </div>
-      """ for w in sections_data['work_resting_on_broken_or_shaky_premises'])}
-    </div>
-    ''' if sections_data['work_resting_on_broken_or_shaky_premises'] else ''}
+    {shaky_section_html}
 
     <!-- 1. Due This Week -->
-    <div class="section">
-      <div class="section-title">Due This Week</div>
-      {f'''
-      {"".join(f"""
-      <div class="task-item">
-        <strong>{t['title']}</strong> — Due {t['due_date']}
-        <span class="badge" style="background:#e0f2fe; color:#0369a1;">{t['status']}</span>
-      </div>
-      """ for t in sections_data['due_this_week'])}
-      ''' if sections_data['due_this_week'] else '<p style="color:#64748b; font-size:13px; margin:0;">No tasks due this week.</p>'}
-    </div>
+    {due_section_html}
 
     <!-- 2. Overdue Tasks -->
-    <div class="section">
-      <div class="section-title">Overdue Tasks</div>
-      {f'''
-      {"".join(f"""
-      <div class="task-item" style="border-left: 3px solid #ef4444;">
-        <span class="badge badge-overdue">Overdue</span>
-        <strong>{t['title']}</strong> (Due {t['due_date']})
-      </div>
-      """ for t in sections_data['overdue'])}
-      ''' if sections_data['overdue'] else '<p style="color:#64748b; font-size:13px; margin:0;">No overdue tasks.</p>'}
-    </div>
+    {overdue_section_html}
 
     <!-- 3. Decisions Affecting You -->
-    <div class="section">
-      <div class="section-title">Decisions Affecting You</div>
-      {f'''
-      {"".join(f"""
-      <div class="task-item">
-        <strong>D{d['id']}: {d['text']}</strong> ({d['status']})
-      </div>
-      """ for d in sections_data['decisions_affecting_you'])}
-      ''' if sections_data['decisions_affecting_you'] else '<p style="color:#64748b; font-size:13px; margin:0;">No decisions linked to your current work.</p>'}
-    </div>
+    {decisions_section_html}
 
     <div class="footer">
       Decidr Enterprise Decision Safety Platform • Automatically generated for {person.email}
