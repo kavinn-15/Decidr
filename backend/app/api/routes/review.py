@@ -866,6 +866,22 @@ def confirm_alert(
     before = {"state": alert.state.value}
     alert.state = AlertState.confirmed
 
+    # If it is a premise_break alert, the premise becomes broken ONLY when a human confirms
+    if alert.kind == AlertKind.premise_break and alert.premise_id:
+        premise = db.get(Premise, alert.premise_id)
+        if premise:
+            prev_status = premise.status.value
+            premise.status = PremiseStatus.broken
+            log(
+                actor=payload.actor,
+                action="break_premise",
+                entity_type="premise",
+                entity_id=premise.id,
+                before={"status": prev_status},
+                after={"status": premise.status.value, "alert_id": alert.id},
+                db=db,
+            )
+
     log(
         actor=payload.actor,
         action="confirm_alert",
@@ -891,6 +907,22 @@ def dismiss_alert(
 
     before = {"state": alert.state.value}
     alert.state = AlertState.dismissed
+
+    # Dismissing a premise_break alert returns the premise to holding
+    if alert.kind == AlertKind.premise_break and alert.premise_id:
+        premise = db.get(Premise, alert.premise_id)
+        if premise and premise.status in (PremiseStatus.broken, PremiseStatus.shaky):
+            prev_status = premise.status.value
+            premise.status = PremiseStatus.holding
+            log(
+                actor=payload.actor,
+                action="restore_premise_holding",
+                entity_type="premise",
+                entity_id=premise.id,
+                before={"status": prev_status},
+                after={"status": premise.status.value, "dismissed_alert_id": alert.id},
+                db=db,
+            )
 
     log(
         actor=payload.actor,

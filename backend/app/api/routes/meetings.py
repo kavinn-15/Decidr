@@ -192,18 +192,22 @@ def get_meeting_utterances(meeting_id: int, db: Session = Depends(get_db)):
 def run_extraction_in_background(meeting_id: int):
     """Background task runner for meeting extraction."""
     from app.main import app
+    from app.services.premise_watch import watch_meeting_utterances
     if get_db in app.dependency_overrides:
         override = app.dependency_overrides[get_db]
         session_gen = override()
         if hasattr(session_gen, "__next__"):
             db = next(session_gen)
             extract_meeting_items(db, meeting_id, actor="background_task")
+            watch_meeting_utterances(db, meeting_id)
         else:
             extract_meeting_items(session_gen, meeting_id, actor="background_task")
+            watch_meeting_utterances(session_gen, meeting_id)
         return
 
     with SessionLocal() as db:
         extract_meeting_items(db, meeting_id, actor="background_task")
+        watch_meeting_utterances(db, meeting_id)
 
 
 @router.post("/{meeting_id}/process")

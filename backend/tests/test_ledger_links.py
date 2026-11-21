@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.main import app
-from app.db.session import get_db, SessionLocal, engine, Base
+from app.db.session import get_db, SessionLocal, engine, Base, init_db
 from app.models.models import (
     Person,
     Meeting,
@@ -38,7 +38,7 @@ from app.services.links import (
 
 @pytest.fixture
 def db_session():
-    Base.metadata.create_all(bind=engine)
+    init_db(engine)
     session = SessionLocal()
     try:
         yield session

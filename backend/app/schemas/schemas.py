@@ -155,6 +155,7 @@ class PremiseBase(BaseSchema):
     state: PremiseState = PremiseState.proposed
     status: PremiseStatus = PremiseStatus.holding
     confirmed_by: Optional[str] = None
+    last_supported_at: Optional[datetime] = None
 
 
 class PremiseCreate(PremiseBase):

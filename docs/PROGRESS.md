@@ -497,5 +497,69 @@ npm --prefix frontend run build
 ### Open Issues / Deferred
 - Blast radius cascading traversal and automated repair proposal generation deferred to subsequent milestone.
 
+---
+
+## Task 11: Continuous Premise Watchdog & Expiry Engine
+### What Was Built
+- **Continuous Premise Watchdog (`backend/app/services/premise_watch.py`)**:
+  - `watch_meeting_utterances(db, meeting_id)`:
+    - **Full Dialogue Monitoring**: Evaluates EVERY utterance in a meeting with 5+ words (not just announcements or decisions).
+    - **Candidate Selection**: Filters confirmed premises in the same project with status `holding` or `shaky` whose scope is not disjoint (`scope_overlap != "disjoint"`).
+    - **Stopword-Filtered Entity & BM25 Ranking**: Uses stopword-filtered BM25Okapi with named entity matching (vendors, currencies, technical terms) to select the top 3 candidate premises per utterance.
+    - **Batched In-Context Judgment**: Uses prompt `watch_premises_batched.v1.txt` with a 5-utterance context window (focal utterance + 2 neighbors on each side). Evaluates candidate premises for `supports`, `undermines`, or `unrelated`.
+    - **Invariant 6 (Verbatim Substring Validation)**: Verifies `new_quote` is an exact substring of the focal utterance before acting; drops quote hallucinations.
+    - **Behavior Routing**:
+      - `undermines` (confidence >= 0.7): Creates an open `premise_break` alert (`kind=AlertKind.premise_break`). The premise remains `holding` until human confirmation.
+      - `undermines` (0.4 <= confidence < 0.7): Transitions premise `status=shaky` and creates a "possible break, please confirm" alert.
+      - `supports`: Updates `last_supported_at` timestamp on the premise and creates 0 alerts.
+      - `unrelated`: Creates 0 alerts.
+    - **Invariant 4 (Unconfirmed Isolation)**: Unconfirmed premises (`state=proposed`) are strictly excluded from candidates.
+    - **Independence**: Never requires the linked decision to be mentioned.
+
+- **Premise Lifecycle & Human Confirmation (`backend/app/api/routes/review.py`)**:
+  - `POST /review/alerts/{id}/confirm`: A premise becomes `broken` ONLY when a human reviewer confirms the alert.
+  - `POST /review/alerts/{id}/dismiss`: Dismissing a premise alert returns the premise to `holding`.
+
+- **Expiry Engine & Time Simulation**:
+  - `run_expiry(db, as_of)` in `premise_watch.py`:
+    - Evaluates confirmed premises: if `valid_until < as_of`, transitions premise `status=expired` and creates an expiry alert (`kind=AlertKind.expiry`).
+    - Premises within 7 days of `valid_until` transition `status=shaky`.
+  - **APScheduler**: Daily midnight background cron job scheduled in `backend/app/main.py`.
+  - **Admin Time Simulation API**: `POST /admin/run-expiry?as_of=YYYY-MM-DD` exposed to allow demo scenarios to simulate time progression.
+
+- **Model & Database Updates**:
+  - Added `last_supported_at = Column(DateTime(timezone=True))` to `Premise` in `models.py` and `schemas.py`.
+  - Added SQLite schema auto-migration in `session.init_db()`.
+
+- **Unit & Planted Case Tests (`backend/tests/test_premise_watch.py`)**:
+  - `test_m2_sams_t2_remark_creates_break_alert_on_p1_without_mentioning_d1`: Sam's passing remark about T+2 settlement creates a break alert on P1 without mentioning D1.
+  - `test_m2_karthik_budget_still_holds_creates_no_alert`: Karthik's remark updates `last_supported_at` on P2 and creates no alert.
+  - `test_europe_statement_does_not_undermine_india_premise`: Europe statements do not undermine India premises due to disjoint scopes.
+  - `test_m3_ravi_leave_creates_break_alert_on_p3`: Ravi's medical leave announcement triggers a break alert on P3.
+  - `test_m4_sandbox_premise_expires_with_as_of_dec_1_and_not_nov_25`: Sandbox premise becomes shaky on 2026-11-25 and expires on 2026-12-01 with an expiry alert.
+  - `test_unconfirmed_premise_is_never_checked`: Unconfirmed premises (`state=proposed`) are never checked.
+  - `test_api_admin_run_expiry`: Verifies time-simulation REST endpoint.
+  - Full suite passes: **66/66 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run premise watch and expiry tests
+.venv\Scripts\pytest.exe backend\tests\test_premise_watch.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `watch_meeting_utterances`, utterances with fewer than 5 words or without non-stopword overlaps with eligible premises are skipped to optimize latency and LLM token usage.
+
+### Open Issues / Deferred
+- Blast radius cascading traversal and automated repair proposal generation deferred to subsequent milestone.
+
+
 
 

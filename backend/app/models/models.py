@@ -186,6 +186,7 @@ class Premise(Base):
         default=PremiseStatus.holding,
     )
     confirmed_by = Column(String(255), nullable=True)
+    last_supported_at = Column(DateTime(timezone=True), nullable=True)
 
     decision = relationship("Decision", back_populates="premises")
     utterance = relationship("Utterance", back_populates="premises")

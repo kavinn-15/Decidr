@@ -1,6 +1,6 @@
 import sqlite3
 from typing import Generator
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from app.core.config import settings
@@ -40,3 +40,9 @@ def init_db(engine_instance: Engine | None = None) -> None:
     """Initialize database tables."""
     eng = engine_instance or engine
     Base.metadata.create_all(bind=eng)
+    with eng.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE premises ADD COLUMN last_supported_at DATETIME;"))
+            conn.commit()
+        except Exception:
+            pass

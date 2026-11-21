@@ -21,6 +21,10 @@ from app.services.conflicts import (
     approve_supersedes_alert,
     notify_blast_radius_service,
 )
+from app.services.premise_watch import (
+    watch_meeting_utterances,
+    run_expiry,
+)
 
 __all__ = [
     "log",
@@ -39,4 +43,6 @@ __all__ = [
     "detect_conflicts_for_decision",
     "approve_supersedes_alert",
     "notify_blast_radius_service",
+    "watch_meeting_utterances",
+    "run_expiry",
 ]

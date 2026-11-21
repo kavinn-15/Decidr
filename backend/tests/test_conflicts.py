@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.session import SessionLocal, engine, Base
+from app.db.session import SessionLocal, engine, Base, init_db
 from app.models.models import (
     Person,
     Meeting,
@@ -37,7 +37,7 @@ from app.services.links import neighbors
 
 @pytest.fixture
 def db_session():
-    Base.metadata.create_all(bind=engine)
+    init_db(engine)
     session = SessionLocal()
     try:
         yield session
