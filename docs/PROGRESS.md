@@ -495,7 +495,74 @@ npm --prefix frontend run build
 - In `conflicts.py`, candidate target decisions for supersedes alerts are referenced in `alert.explanation` via an invisible HTML comment tag `<!-- old_decision_id:<id> -->` for lossless downstream resolution.
 
 ### Open Issues / Deferred
-- Blast radius cascading traversal and automated repair proposal generation deferred to subsequent milestone.
+- Automated repair proposal generation deferred to subsequent milestone.
+
+---
+
+## Task 12: Blast Radius Traversal Engine & /affected Screen
+### What Was Built
+- **Deterministic Blast Radius Traversal Engine (`backend/app/services/blast_radius.py`)**:
+  - `calculate_blast_radius(db, alert_id=None, premise_id=None, decision_id=None)`:
+    - **100% Plain Code Traversal (Invariant 5)**: Zero LLM calls are used for graph traversal, chain generation, reason generation, or metrics.
+    - **Confirmed Links Only (Invariant 4)**: Walks only confirmed links:
+      `Premise` -> `Decision` (premise's underlying decision) -> `Decisions` connected transitively via confirmed `depends_on` links -> `Tasks` connected via confirmed `implements` links.
+    - **Node and Edge Chain Tracking**: Returns exact step-by-step breadcrumb chains (`[P1] -> [D1] -> [T1]`) with explicit depth calculations (Depth 1 for immediate decision/tasks, Depth 2+ for transitively dependent decisions/tasks).
+    - **Templated Code-Generated Reasons**: Generates detailed deterministic explanations without an LLM:
+      e.g., `"Sam (M2, Nov 9) says Provider A supports only T+2 > undermines premise P1 > P1 supports D1 > D1 justifies T1"`.
+    - **Triage & Partitioning**:
+      1. **Affected Tasks & Decisions**: Grouped with depth, chain breadcrumbs, and exact reason.
+      2. **Unaffected Tasks**: Tasks within the same project that are NOT in the affected set, paired with a deterministic code-generated reason:
+         - Scope disjointness using `scope_overlap(task.scope, affected.scope)` (e.g. `"scope differs: Europe vs India"`).
+         - `"no confirmed link to an affected decision"`.
+      3. **Needs Confirmation**: Tasks linked via unconfirmed links (`link.confirmed == False`), marked as `"needs confirmation, nothing changed"` without altering task state or affecting calculations.
+    - **Measured Metrics (Invariant 10)**:
+      - `hours_at_risk`: Strict arithmetic sum of `estimate_hours` for all open affected tasks.
+      - `unestimated_tasks`: Count of open affected tasks lacking hour estimates. Never guesses an estimate.
+    - **Superseded Decisions Support**: Works directly with superseded decisions via `decision_id` (connected from Task 10's `notify_blast_radius_service`).
+
+- **Alerts & Blast Radius API (`backend/app/api/routes/alerts.py`)**:
+  - `GET /alerts`: Returns all alerts with filtering by `kind`, `status`, and `project`.
+  - `GET /alerts/{id}/blast-radius`: Returns complete computed blast radius payload including trigger evidence, affected nodes with chains, unaffected tasks with reasons, needs-confirmation tasks, and metrics.
+  - Mounted on FastAPI app in `backend/app/main.py`.
+
+- **Frontend `/affected` Screen (`frontend/app/affected/page.tsx`)**:
+  - Alert Chooser dropdown with filterable alerts (premise breaks, conflicts, expirations).
+  - Trigger Evidence Card: Side-by-side comparison of baseline quote/context vs breaking trigger event quote and speaker.
+  - Hours-at-Risk Banner: Visual highlight of total hours at risk alongside a badge for unestimated tasks.
+  - Three Categorized Sections:
+    1. **Affected Items**: Displays depth badges, connected node chains (`[P1] -> [D1] -> [T1]`), item title, and expandable "Why" chain explanations.
+    2. **Not Affected Items**: Lists unaffected tasks in the project with code-generated rationale (e.g. scope disjointness).
+    3. **Needs Confirmation**: Highlights provisional/unconfirmed items requiring human review before taking action.
+  - Responsive, clean UI using Tailwind CSS and Lucide icons.
+
+- **Unit & Integration Tests (`backend/tests/test_blast_radius.py`)**:
+  - `test_breaking_p1_affects_t1_t2_and_transitive_t6`: Breaking P1 correctly affects T1 & T2 at depth 1 and T6 at depth 2 via transitive D3.
+  - `test_europe_task_t5_is_unaffected_with_scope_reason`: T5 (Europe) is categorized as unaffected with explicit scope reason `"scope differs: Europe vs India"`.
+  - `test_unconfirmed_link_is_categorized_as_needs_confirmation`: Task linked via unconfirmed `implements` link is partitioned into `needs_confirmation` with reason `"needs confirmation, nothing changed"`.
+  - `test_hours_at_risk_calculation`: Accurately computes `hours_at_risk` without guessing unestimated tasks.
+  - `test_superseded_decision_blast_radius`: Directly calculates blast radius for superseded decisions.
+  - `test_api_get_alert_blast_radius`: Verifies REST API integration.
+  - Full suite passes: **72/72 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run blast radius tests
+.venv\Scripts\pytest.exe backend\tests\test_blast_radius.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `calculate_blast_radius`, open tasks are identified where `task.status` is not `completed` or `cancelled`.
+- For decisions directly linked to a premise, edge chain starts with `Premise -> Decision`, continuing through `depends_on` and `implements` edges.
+
+### Open Issues / Deferred
+- Automated repair proposal generation deferred to subsequent milestone.
 
 ---
 
@@ -558,7 +625,74 @@ npm --prefix frontend run build
 - In `watch_meeting_utterances`, utterances with fewer than 5 words or without non-stopword overlaps with eligible premises are skipped to optimize latency and LLM token usage.
 
 ### Open Issues / Deferred
-- Blast radius cascading traversal and automated repair proposal generation deferred to subsequent milestone.
+- Automated repair proposal generation deferred to subsequent milestone.
+
+---
+
+## Task 12: Blast Radius Traversal Engine & /affected Screen
+### What Was Built
+- **Deterministic Blast Radius Traversal Engine (`backend/app/services/blast_radius.py`)**:
+  - `calculate_blast_radius(db, alert_id=None, premise_id=None, decision_id=None)`:
+    - **100% Plain Code Traversal (Invariant 5)**: Zero LLM calls are used for graph traversal, chain generation, reason generation, or metrics.
+    - **Confirmed Links Only (Invariant 4)**: Walks only confirmed links:
+      `Premise` -> `Decision` (premise's underlying decision) -> `Decisions` connected transitively via confirmed `depends_on` links -> `Tasks` connected via confirmed `implements` links.
+    - **Node and Edge Chain Tracking**: Returns exact step-by-step breadcrumb chains (`[P1] -> [D1] -> [T1]`) with explicit depth calculations (Depth 1 for immediate decision/tasks, Depth 2+ for transitively dependent decisions/tasks).
+    - **Templated Code-Generated Reasons**: Generates detailed deterministic explanations without an LLM:
+      e.g., `"Sam (M2, Nov 9) says Provider A supports only T+2 > undermines premise P1 > P1 supports D1 > D1 justifies T1"`.
+    - **Triage & Partitioning**:
+      1. **Affected Tasks & Decisions**: Grouped with depth, chain breadcrumbs, and exact reason.
+      2. **Unaffected Tasks**: Tasks within the same project that are NOT in the affected set, paired with a deterministic code-generated reason:
+         - Scope disjointness using `scope_overlap(task.scope, affected.scope)` (e.g. `"scope differs: Europe vs India"`).
+         - `"no confirmed link to an affected decision"`.
+      3. **Needs Confirmation**: Tasks linked via unconfirmed links (`link.confirmed == False`), marked as `"needs confirmation, nothing changed"` without altering task state or affecting calculations.
+    - **Measured Metrics (Invariant 10)**:
+      - `hours_at_risk`: Strict arithmetic sum of `estimate_hours` for all open affected tasks.
+      - `unestimated_tasks`: Count of open affected tasks lacking hour estimates. Never guesses an estimate.
+    - **Superseded Decisions Support**: Works directly with superseded decisions via `decision_id` (connected from Task 10's `notify_blast_radius_service`).
+
+- **Alerts & Blast Radius API (`backend/app/api/routes/alerts.py`)**:
+  - `GET /alerts`: Returns all alerts with filtering by `kind`, `status`, and `project`.
+  - `GET /alerts/{id}/blast-radius`: Returns complete computed blast radius payload including trigger evidence, affected nodes with chains, unaffected tasks with reasons, needs-confirmation tasks, and metrics.
+  - Mounted on FastAPI app in `backend/app/main.py`.
+
+- **Frontend `/affected` Screen (`frontend/app/affected/page.tsx`)**:
+  - Alert Chooser dropdown with filterable alerts (premise breaks, conflicts, expirations).
+  - Trigger Evidence Card: Side-by-side comparison of baseline quote/context vs breaking trigger event quote and speaker.
+  - Hours-at-Risk Banner: Visual highlight of total hours at risk alongside a badge for unestimated tasks.
+  - Three Categorized Sections:
+    1. **Affected Items**: Displays depth badges, connected node chains (`[P1] -> [D1] -> [T1]`), item title, and expandable "Why" chain explanations.
+    2. **Not Affected Items**: Lists unaffected tasks in the project with code-generated rationale (e.g. scope disjointness).
+    3. **Needs Confirmation**: Highlights provisional/unconfirmed items requiring human review before taking action.
+  - Responsive, clean UI using Tailwind CSS and Lucide icons.
+
+- **Unit & Integration Tests (`backend/tests/test_blast_radius.py`)**:
+  - `test_breaking_p1_affects_t1_t2_and_transitive_t6`: Breaking P1 correctly affects T1 & T2 at depth 1 and T6 at depth 2 via transitive D3.
+  - `test_europe_task_t5_is_unaffected_with_scope_reason`: T5 (Europe) is categorized as unaffected with explicit scope reason `"scope differs: Europe vs India"`.
+  - `test_unconfirmed_link_is_categorized_as_needs_confirmation`: Task linked via unconfirmed `implements` link is partitioned into `needs_confirmation` with reason `"needs confirmation, nothing changed"`.
+  - `test_hours_at_risk_calculation`: Accurately computes `hours_at_risk` without guessing unestimated tasks.
+  - `test_superseded_decision_blast_radius`: Directly calculates blast radius for superseded decisions.
+  - `test_api_get_alert_blast_radius`: Verifies REST API integration.
+  - Full suite passes: **72/72 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run blast radius tests
+.venv\Scripts\pytest.exe backend\tests\test_blast_radius.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `calculate_blast_radius`, open tasks are identified where `task.status` is not `completed` or `cancelled`.
+- For decisions directly linked to a premise, edge chain starts with `Premise -> Decision`, continuing through `depends_on` and `implements` edges.
+
+### Open Issues / Deferred
+- Automated repair proposal generation deferred to subsequent milestone.
 
 
 

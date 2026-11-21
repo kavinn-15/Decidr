@@ -530,3 +530,109 @@ export async function fetchDecisionDetail(id: number): Promise<DecisionDetailRes
   return apiRequest<DecisionDetailResponse>(`/decisions/${id}`);
 }
 
+export interface BlastRadiusChainNode {
+  type: string;
+  id: number;
+  label: string;
+}
+
+export interface BlastRadiusChainEdge {
+  from_type: string;
+  from_id: string;
+  to_type: string;
+  to_id: string;
+  relation: string;
+}
+
+export interface BlastRadiusAffectedTask {
+  id: number;
+  title: string;
+  status: string;
+  owner: string;
+  due_date?: string | null;
+  estimate_hours?: number | null;
+  provisional?: boolean;
+  depth: number;
+  decision_id: number;
+  chain_nodes: BlastRadiusChainNode[];
+  chain_edges: BlastRadiusChainEdge[];
+  reason: string;
+}
+
+export interface BlastRadiusUnaffectedTask {
+  id: number;
+  title: string;
+  status: string;
+  owner: string;
+  due_date?: string | null;
+  estimate_hours?: number | null;
+  region?: string | null;
+  reason: string;
+}
+
+export interface BlastRadiusNeedsConfirmationTask {
+  id: number;
+  title: string;
+  status: string;
+  owner: string;
+  due_date?: string | null;
+  estimate_hours?: number | null;
+  reason: string;
+  status_badge: string;
+}
+
+export interface BlastRadiusResponse {
+  alert_id?: number | null;
+  alert_kind: string;
+  verdict: string;
+  project: string;
+  trigger_evidence: {
+    speaker: string;
+    meeting_title: string;
+    meeting_date: string;
+    old_quote: string;
+    new_quote: string;
+    explanation: string;
+  };
+  root_cause: {
+    type: string;
+    id: number;
+    text: string;
+    region?: string | null;
+  };
+  metrics: {
+    hours_at_risk: number;
+    unestimated_count: number;
+    total_affected: number;
+    direct_affected: number;
+    indirect_affected: number;
+    unaffected_count: number;
+    needs_confirmation_count: number;
+  };
+  affected: BlastRadiusAffectedTask[];
+  unaffected: BlastRadiusUnaffectedTask[];
+  needs_confirmation: BlastRadiusNeedsConfirmationTask[];
+}
+
+export interface AlertSummaryItem {
+  id: number;
+  kind: string;
+  verdict: string;
+  state: string;
+  meeting_id?: number | null;
+  decision_id?: number | null;
+  premise_id?: number | null;
+  old_quote?: string | null;
+  new_quote?: string | null;
+  explanation?: string | null;
+}
+
+export async function fetchAlerts(state: string = "open"): Promise<AlertSummaryItem[]> {
+  return apiRequest<AlertSummaryItem[]>(`/alerts?state=${state}`);
+}
+
+export async function fetchAlertBlastRadius(alertId: number): Promise<BlastRadiusResponse> {
+  return apiRequest<BlastRadiusResponse>(`/alerts/${alertId}/blast-radius`);
+}
+
+

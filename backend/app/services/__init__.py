@@ -25,6 +25,9 @@ from app.services.premise_watch import (
     watch_meeting_utterances,
     run_expiry,
 )
+from app.services.blast_radius import (
+    calculate_blast_radius,
+)
 
 __all__ = [
     "log",
@@ -45,4 +48,5 @@ __all__ = [
     "notify_blast_radius_service",
     "watch_meeting_utterances",
     "run_expiry",
+    "calculate_blast_radius",
 ]

@@ -31,10 +31,15 @@ class DecisionConflictJudgeOutput(BaseModel):
 def notify_blast_radius_service(db: Session, decision: Decision, actor: str = "system") -> None:
     """
     Hook for the blast-radius service.
-    When a decision is superseded or broken, downstream tasks and reminders are evaluated
-    for cascading risk and repair proposals.
+    When a decision is superseded or broken, downstream tasks and dependencies are evaluated
+    for cascading risk.
     """
-    logger.info(f"[BLAST_RADIUS_HOOK] Feeding decision #{decision.id} ({decision.text}) to blast radius analysis.")
+    from app.services.blast_radius import calculate_blast_radius
+    try:
+        calculate_blast_radius(db, decision_id=decision.id)
+        logger.info(f"[BLAST_RADIUS_HOOK] Successfully computed blast radius for superseded decision #{decision.id}.")
+    except Exception as e:
+        logger.warning(f"[BLAST_RADIUS_HOOK] Error computing blast radius for decision #{decision.id}: {e}")
 
 
 def _is_exact_substring(needle: str, *haystacks: Optional[str]) -> bool:
