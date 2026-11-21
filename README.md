@@ -65,7 +65,7 @@ flowchart TD
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/rpravin-02/Decidr.git decidr && cd decidr
+git clone https://github.com/kavinn-15/Decidr.git decidr && cd decidr
 
 # 2. Set up Python virtual environment
 python -m venv .venv && .\.venv\Scripts\activate

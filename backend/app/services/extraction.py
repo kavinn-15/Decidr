@@ -183,6 +183,16 @@ def extract_meeting_items(db: Session, meeting_id: int, actor: str = "system") -
         utterances_by_idx = {u.idx: u for u in utterances}
         people = db.query(Person).all()
 
+        # Deduplication safety: clear any unreviewed/proposed items from a prior run
+        existing_proposed = (
+            db.query(Item)
+            .filter(Item.meeting_id == meeting_id, Item.review_state == ReviewState.proposed)
+            .all()
+        )
+        for old_item in existing_proposed:
+            db.delete(old_item)
+        db.flush()
+
         # Pass 1: Extract Decisions and Actions over chunks
         chunks = chunk_utterances(utterances, chunk_size=40, overlap=5)
         raw_decisions: List[DecisionExtracted] = []

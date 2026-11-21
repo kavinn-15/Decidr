@@ -1,5 +1,6 @@
 import json
 import re
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.models.models import Meeting, Utterance, Person
 from app.models.enums import MeetingStatus
 from app.services.audit import log as audit_log
+
+logger = logging.getLogger("decidr.ingestion")
 
 
 def parse_vtt(content: str) -> List[Dict[str, Any]]:
@@ -259,6 +262,20 @@ def ingest_meeting(
     - Flags unmapped speakers
     - Records audit log entry
     """
+    # Check if this exact transcript was already ingested for this project and date
+    existing_meeting = (
+        db.query(Meeting)
+        .filter(
+            Meeting.project == project,
+            Meeting.date == meeting_date,
+            (Meeting.title == title) | (Meeting.transcript_ref == filename),
+        )
+        .first()
+    )
+    if existing_meeting:
+        logger.info(f"Meeting already ingested: #{existing_meeting.id} ('{title}'). Returning existing record.")
+        return existing_meeting
+
     # Create meeting in processing state
     meeting = Meeting(
         title=title,

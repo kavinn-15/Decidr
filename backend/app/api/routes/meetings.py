@@ -56,6 +56,18 @@ async def create_meeting(
         )
 
     file_bytes = await file.read()
+    if not file_bytes or not file_bytes.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Transcript file is empty.",
+        )
+
+    if len(file_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Transcript file exceeds maximum allowed size (5 MB).",
+        )
+
     try:
         content = file_bytes.decode("utf-8")
     except UnicodeDecodeError:
