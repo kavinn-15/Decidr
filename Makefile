@@ -13,4 +13,4 @@ reset:
 	@powershell -Command ".venv\Scripts\python.exe scripts\reset_db.py; Remove-Item -Path .llm_cache\* -Force -ErrorAction SilentlyContinue; Write-Host 'Reset complete.'"
 
 eval:
-	@powershell -Command ".venv\Scripts\python.exe -m app.eval"
+	@powershell -Command ".venv\Scripts\python.exe scripts\check_extraction.py"

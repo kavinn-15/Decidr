@@ -267,9 +267,9 @@ class LLMAdapter:
         # Compute SHA256 cache key
         cache_key = get_cache_key(model_name, rendered_prompt, variables)
 
-        # In cache or replay mode, check disk first
+        # In cache or replay mode, check disk first (unless a fake response is explicitly enqueued)
         cached = self._read_cache(cache_key)
-        if cached is not None and mode in ("live", "record", "replay", "cache"):
+        if cached is not None and mode in ("live", "record", "replay", "cache") and not self.fake_queue:
             logger.info(f"LLM cache HIT [key={cache_key[:8]}, prompt={prompt_name}]")
             return schema.model_validate(cached["response_json"])
 

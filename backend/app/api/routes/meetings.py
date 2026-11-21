@@ -1,13 +1,15 @@
 from datetime import date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
+from app.models.enums import MeetingStatus
 from app.models.models import Meeting, Utterance, Person
 from app.schemas.schemas import MeetingRead, UtteranceRead
 from app.services.ingestion import ingest_meeting, patch_meeting_speaker
+from app.services.extraction import extract_meeting_items
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -140,6 +142,49 @@ def get_meeting_utterances(meeting_id: int, db: Session = Depends(get_db)):
             )
         )
     return results
+
+
+def run_extraction_in_background(meeting_id: int):
+    """Background task runner for meeting extraction."""
+    from app.main import app
+    if get_db in app.dependency_overrides:
+        override = app.dependency_overrides[get_db]
+        session_gen = override()
+        if hasattr(session_gen, "__next__"):
+            db = next(session_gen)
+            extract_meeting_items(db, meeting_id, actor="background_task")
+        else:
+            extract_meeting_items(session_gen, meeting_id, actor="background_task")
+        return
+
+    with SessionLocal() as db:
+        extract_meeting_items(db, meeting_id, actor="background_task")
+
+
+@router.post("/{meeting_id}/process")
+def process_meeting(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Run two-pass extraction on meeting transcript in the background.
+    Status transitions: uploaded -> processing -> review (or failed).
+    """
+    meeting = db.query(Meeting).filter_by(id=meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    meeting.status = MeetingStatus.processing
+    db.commit()
+
+    background_tasks.add_task(run_extraction_in_background, meeting_id)
+
+    return {
+        "meeting_id": meeting_id,
+        "status": "processing",
+        "message": "Extraction process started in the background.",
+    }
 
 
 @router.patch("/{meeting_id}/speakers")

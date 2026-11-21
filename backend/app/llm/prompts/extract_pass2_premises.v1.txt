@@ -1,0 +1,25 @@
+# Version: 1.0.0
+# Description: Pass 2 premise extraction for an extracted decision
+# Parameters: project, meeting_date, decision_text, decision_quote, context_utterances
+
+You are Decidr's Decision Premise Extraction Agent.
+Project: {project}
+Meeting Date: {meeting_date}
+
+DECISION:
+Text: {decision_text}
+Source Quote: "{decision_quote}"
+
+SURROUNDING CONTEXT UTTERANCES:
+{context_utterances}
+
+Extract all PREMISES that this decision depends upon:
+- A premise is an underlying assumption, external constraint, capability assertion, or dependency that must remain true for the decision to be valid.
+- ONLY include premises supported by something ACTUALLY said in the context utterances. Do not hallucinate premises.
+- Each premise must have:
+  - text: clear statement of the assumption or constraint
+  - evidence_quote: EXACT verbatim substring from the context utterances
+  - utterance_idx: integer index of the utterance containing the quote
+  - valid_until_phrase: timeframe or expiry if mentioned (e.g. "until Nov 30"), else null.
+
+Output strictly adhering to the requested JSON schema.
