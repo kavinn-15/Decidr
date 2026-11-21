@@ -7,7 +7,7 @@ test:
 	@powershell -Command ".venv\Scripts\pytest.exe backend\tests -v"
 
 seed:
-	@powershell -Command ".venv\Scripts\python.exe -m app.db.seed"
+	@powershell -Command ".venv\Scripts\python.exe scripts\seed.py"
 
 reset:
 	@powershell -Command ".venv\Scripts\python.exe scripts\reset_db.py; Remove-Item -Path .llm_cache\* -Force -ErrorAction SilentlyContinue; Write-Host 'Reset complete.'"

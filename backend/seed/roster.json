@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Asha",
+    "email": "asha@decidr.local",
+    "tracker_id": "ASHA-PM",
+    "slack_id": "U01ASHA"
+  },
+  {
+    "name": "Ravi",
+    "email": "ravi@decidr.local",
+    "tracker_id": "RAVI-BE",
+    "slack_id": "U02RAVI"
+  },
+  {
+    "name": "Meera",
+    "email": "meera@decidr.local",
+    "tracker_id": "MEERA-FE",
+    "slack_id": "U03MEERA"
+  },
+  {
+    "name": "Karthik",
+    "email": "karthik@decidr.local",
+    "tracker_id": "KARTHIK-FIN",
+    "slack_id": "U04KARTHIK"
+  },
+  {
+    "name": "Divya",
+    "email": "divya@decidr.local",
+    "tracker_id": "DIVYA-QA",
+    "slack_id": "U05DIVYA"
+  },
+  {
+    "name": "Sam",
+    "email": "sam@decidr.local",
+    "tracker_id": "SAM-VM",
+    "slack_id": "U06SAM"
+  }
+]

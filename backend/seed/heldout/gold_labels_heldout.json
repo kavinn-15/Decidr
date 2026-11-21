@@ -1,0 +1,126 @@
+{
+  "project": "Mobile App Release",
+  "meetings": {
+    "H1": {
+      "date": "2026-10-05",
+      "filename": "h1_2026-10-05.vtt",
+      "decisions": [
+        {
+          "id": "HD1",
+          "text": "Use SQLite for offline cache",
+          "scope_project": "Mobile App Release",
+          "scope_region": "Global",
+          "evidence_quote": "we will use SQLite for offline cache across both iOS and Android apps."
+        },
+        {
+          "id": "HD2",
+          "text": "Target beta release on Nov 10",
+          "scope_project": "Mobile App Release",
+          "scope_region": "Global",
+          "effective_from": "2026-11-10",
+          "evidence_quote": "we want to target beta release on Nov 10 for internal dogfooding."
+        }
+      ],
+      "premises": [
+        {
+          "id": "HP1",
+          "decision_id": "HD1",
+          "text": "SQLite query latency is under 5ms",
+          "scope_project": "Mobile App Release",
+          "evidence_quote": "SQLite query latency is under 5ms for cold indexed reads."
+        }
+      ],
+      "actions": [
+        {
+          "id": "HT1",
+          "title": "Benchmark SQLite read throughput",
+          "owner": "Rohan",
+          "deadline": "2026-10-15",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "I can take the task to benchmark SQLite read throughput by Oct 15."
+        },
+        {
+          "id": "HT2",
+          "title": "Design cache eviction UI",
+          "owner": "Tanya",
+          "deadline": null,
+          "needs_owner": false,
+          "needs_deadline": true,
+          "evidence_quote": "I will work on the specifications to design cache eviction UI so users can clear cached assets, but no firm date yet."
+        },
+        {
+          "id": "HT3",
+          "title": "Configure Android test devices",
+          "owner": null,
+          "deadline": "2026-10-18",
+          "needs_owner": true,
+          "needs_deadline": false,
+          "evidence_quote": "Someone should configure Android test devices by Oct 18 with synthetic test catalogs."
+        },
+        {
+          "id": "HT4",
+          "title": "Security review of offline database encryption",
+          "owner": "Vikram",
+          "deadline": "2026-10-22",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "I'll also schedule the security review of offline database encryption by Oct 22 with the AppSec team."
+        }
+      ],
+      "links": [
+        {
+          "source_id": "HT1",
+          "source_type": "task",
+          "target_id": "HD1",
+          "target_type": "decision",
+          "relation": "implements",
+          "confirmed": true,
+          "rationale": "Benchmarking directly validates SQLite implementation decision"
+        }
+      ]
+    },
+    "H2": {
+      "date": "2026-10-12",
+      "filename": "h2_2026-10-12.vtt",
+      "expected_alerts": [
+        {
+          "kind": "premise_break",
+          "premise_id": "HP1",
+          "decision_id": "HD1",
+          "verdict": "broken",
+          "old_quote": "SQLite query latency is under 5ms for cold indexed reads.",
+          "new_quote": "SQLite query latency is 25ms under realistic data load, which is way higher than expected.",
+          "explanation": "Profiler telemetry reveals SQLite latency is 25ms, contradicting confirmed premise HP1 that query latency is under 5ms."
+        }
+      ],
+      "expected_blast_radius": {
+        "affected_tasks": [
+          {
+            "task_id": "HT1",
+            "reason": "Directly implements the SQLite offline caching decision HD1 which depends on broken premise HP1"
+          }
+        ],
+        "unaffected_tasks": [
+          {
+            "task_id": "HT3",
+            "reason": "General Android test device setup does not depend on database engine choice"
+          }
+        ]
+      },
+      "expected_repair_actions": [
+        {
+          "action_type": "mark_decision_at_risk",
+          "target_type": "decision",
+          "target_id": "HD1"
+        },
+        {
+          "action_type": "comment_task",
+          "target_type": "task",
+          "target_id": "HT1",
+          "summary": "Flag benchmark task: observed latency 25ms violates 5ms threshold"
+        }
+      ]
+    }
+  }
+}

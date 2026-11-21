@@ -1,0 +1,31 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.200
+Priya: Morning everyone. Let's do a quick sync on our offline synchronization architecture.
+
+00:00:04.500 --> 00:00:08.500
+Rohan: Hey Priya. Did we decide between Realm and SQLite for the client storage layer?
+
+00:00:08.800 --> 00:00:15.500
+Priya: Yes, after reviewing binary size overhead, we will use SQLite for offline cache across both iOS and Android apps.
+
+00:00:15.800 --> 00:00:22.000
+Vikram: That's great for cross-platform schema sharing. Plus, our architecture team confirmed that SQLite query latency is under 5ms for cold indexed reads.
+
+00:00:22.300 --> 00:00:27.200
+Tanya: From the product roadmap side, we want to target beta release on Nov 10 for internal dogfooding.
+
+00:00:27.500 --> 00:00:32.800
+Rohan: Nov 10 gives us enough runway. I can take the task to benchmark SQLite read throughput by Oct 15.
+
+00:00:33.100 --> 00:00:38.200
+Tanya: I will work on the specifications to design cache eviction UI so users can clear cached assets, but no firm date yet.
+
+00:00:38.500 --> 00:00:44.000
+Sneha: QA needs test hardware ready. Someone should configure Android test devices by Oct 18 with synthetic test catalogs.
+
+00:00:44.300 --> 00:00:49.000
+Vikram: I'll also schedule the security review of offline database encryption by Oct 22 with the AppSec team.
+
+00:00:49.300 --> 00:00:53.000
+Priya: Excellent. Let's start the benchmarking sprint.

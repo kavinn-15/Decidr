@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Priya",
+    "email": "priya@mobile.local",
+    "tracker_id": "PRIYA-EM",
+    "slack_id": "U10PRIYA"
+  },
+  {
+    "name": "Rohan",
+    "email": "rohan@mobile.local",
+    "tracker_id": "ROHAN-IOS",
+    "slack_id": "U11ROHAN"
+  },
+  {
+    "name": "Vikram",
+    "email": "vikram@mobile.local",
+    "tracker_id": "VIKRAM-AND",
+    "slack_id": "U12VIKRAM"
+  },
+  {
+    "name": "Sneha",
+    "email": "sneha@mobile.local",
+    "tracker_id": "SNEHA-QA",
+    "slack_id": "U13SNEHA"
+  },
+  {
+    "name": "Tanya",
+    "email": "tanya@mobile.local",
+    "tracker_id": "TANYA-PM",
+    "slack_id": "U14TANYA"
+  }
+]

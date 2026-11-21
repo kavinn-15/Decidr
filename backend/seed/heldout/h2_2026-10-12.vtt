@@ -1,0 +1,19 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.500
+Priya: Afternoon all. Let's check status on offline cache integration and test metrics.
+
+00:00:04.800 --> 00:00:08.800
+Rohan: iOS core data syncing is mostly wired up, though we noticed some thermal throttling.
+
+00:00:09.100 --> 00:00:17.000
+Sneha: I was analyzing the profiler logs yesterday after our stress test, and honestly SQLite query latency is 25ms under realistic data load, which is way higher than expected.
+
+00:00:17.300 --> 00:00:21.500
+Vikram: Whoa, 25ms will definitely hitch the 120Hz scrolling animation on flagship phones.
+
+00:00:21.800 --> 00:00:26.500
+Priya: That's a major concern. We need to investigate whether it's unindexed full-table scans.
+
+00:00:26.800 --> 00:00:30.000
+Tanya: Let's make sure we resolve this before opening up the beta build.

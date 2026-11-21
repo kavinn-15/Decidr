@@ -1,0 +1,46 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.800
+Asha: Morning team. We have a lot of ground to cover today regarding launch gates and architecture dependencies.
+
+00:00:05.100 --> 00:00:09.500
+Karthik: Hey Asha, I've got a hard stop at 10:45 for the quarterly audit prep, so let's hit critical paths first.
+
+00:00:09.800 --> 00:00:15.000
+Asha: Understood. First key item: our external security penetration testing partners need extra lead time to complete the PCI-DSS audit.
+
+00:00:15.300 --> 00:00:23.000
+Asha: Look guys, looking at the security audit backlog, we are moving the India launch from Dec 15 to Jan 10 so we don't rush into production during holiday freeze.
+
+00:00:23.300 --> 00:00:27.100
+Meera: Honestly that is a huge relief. Rushing into production in mid-December was giving me ulcers.
+
+00:00:27.400 --> 00:00:32.800
+Divya: Gives QA enough time to execute full end-to-end chaos tests on the settlement fallbacks too.
+
+00:00:33.100 --> 00:00:40.500
+Karthik: From an audit perspective, compliance insists that the reconciliation report is part of the launch checklist before we allow any live merchant transactions.
+
+00:00:40.800 --> 00:00:45.900
+Asha: Absolutely. We cannot go live without a signed-off reconciliation mechanism between our ledger and Provider A.
+
+00:00:46.200 --> 00:00:52.400
+Asha: Meera, since you own the merchant ops portal, can you prepare launch checklist sign-off by Dec 12?
+
+00:00:52.700 --> 00:00:56.800
+Meera: Yes, I will prepare launch checklist sign-off and verify the daily statement export format with finance.
+
+00:00:57.100 --> 00:01:03.200
+Ravi: Wait, on the schedule, my family emergency came early so I will be on leave from Dec 1, which means I won't be around that whole week.
+
+00:01:03.500 --> 00:01:07.800
+Asha: Oh, sorry to hear that Ravi. Take whatever time you need. We will adjust the sprint allocation accordingly.
+
+00:01:08.100 --> 00:01:13.600
+Divya: We should make sure your PRs for the gateway adapters are merged before you take off.
+
+00:01:13.900 --> 00:01:18.000
+Ravi: Absolutely. I'll get the integration branch pushed by Nov 28 at the latest.
+
+00:01:18.300 --> 00:01:21.900
+Asha: Thanks everyone. Let's update our Jira boards to reflect the revised launch milestones.

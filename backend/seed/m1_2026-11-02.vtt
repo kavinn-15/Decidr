@@ -1,0 +1,85 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.500
+Asha: Hey everyone, sorry I'm two minutes late. The cafeteria line was absurd today.
+
+00:00:04.800 --> 00:00:08.200
+Ravi: No worries. Did you manage to grab coffee, or are we running on pure adrenaline?
+
+00:00:08.500 --> 00:00:12.000
+Asha: Pure adrenaline and cold brew. Alright, let's dive into the Payments Revamp project kickoff.
+
+00:00:12.300 --> 00:00:17.100
+Karthik: Before we start, did everyone see the updated travel reimbursement policy? Just kidding, carry on.
+
+00:00:17.400 --> 00:00:23.000
+Meera: Please don't give finance more paperwork jokes, Karthik. We have actual screens to design.
+
+00:00:23.300 --> 00:00:29.800
+Asha: Right, focus team. So after evaluating the vendor bake-off and reviewing latency metrics, we will use Provider A for India settlements.
+
+00:00:30.100 --> 00:00:33.900
+Divya: Oh nice, we finally picked them. What swung the decision over Provider C?
+
+00:00:34.200 --> 00:00:41.500
+Sam: Well, their technical documentation was decent, but honestly the clincher was that Provider A supports T+0 UPI settlement, which leadership considers non-negotiable for festive sales.
+
+00:00:41.800 --> 00:00:46.000
+Ravi: T+0 is huge for liquidity. If the webhooks actually fire on time, that saves our treasury team endless headaches.
+
+00:00:46.300 --> 00:00:53.200
+Karthik: From the commercial side, I reviewed their fee tier, and our budget of 8 lakh is approved through Q1, so we are well covered on licensing and volume fees.
+
+00:00:53.500 --> 00:00:57.000
+Asha: That's great to hear. Now looking at our corporate roadmap and partner marketing deadlines...
+
+00:00:57.300 --> 00:01:03.500
+Asha: We must launch India payments on Dec 15 so that PR can blast the release before the mid-December freeze.
+
+00:01:03.800 --> 00:01:09.100
+Ravi: Dec 15 is aggressive, but Ravi is available full time until Dec 5 before my family vacation, so we should make it if we stay scoped.
+
+00:01:09.400 --> 00:01:13.200
+Meera: As long as the API specs don't randomly mutate mid-sprint like last quarter!
+
+00:01:13.500 --> 00:01:18.000
+Ravi: Hey, those were spec improvements, not mutations! Anyway, I'll take the lead on the backend integration.
+
+00:01:18.300 --> 00:01:24.000
+Asha: Awesome. Ravi, let's formalize that: your top priority is to integrate Provider A SDK by Nov 20 so QA gets build drops.
+
+00:01:24.300 --> 00:01:27.500
+Ravi: Got it. I'll scaffold the auth services and checkout flow first.
+
+00:01:27.800 --> 00:01:34.000
+Meera: On the dashboard side, I will build settlement reconciliation screen for merchant ops, though we haven't locked the date yet since the wireframes need sign-off.
+
+00:01:34.300 --> 00:01:38.200
+Asha: Sounds good Meera, let's get the design review scheduled this week so you aren't blocked.
+
+00:01:38.500 --> 00:01:44.800
+Divya: QA needs to prep regression suites. Someone needs to write settlement test plan by Nov 25 so we can stress test edge cases.
+
+00:01:45.100 --> 00:01:48.400
+Asha: We'll assign who writes the test doc in our standup tomorrow, but the date stands.
+
+00:01:48.700 --> 00:01:54.000
+Karthik: On legal agreements, I will complete the finance sign-off on vendor contract by Nov 12 once Sam sends over the redlined annexure.
+
+00:01:54.300 --> 00:01:57.100
+Sam: Sending that right after this call, Karthik.
+
+00:01:57.400 --> 00:02:04.200
+Asha: Looking ahead to our global rollout, Divya, can you evaluate Provider B for Europe by Nov 30 so we can compare their PSD2 capabilities?
+
+00:02:04.500 --> 00:02:07.800
+Divya: Sure, I'll benchmark their sandbox reliability and compliance checklists.
+
+00:02:08.100 --> 00:02:14.600
+Sam: One quick housekeeping item: someone should review the vendor SLA, just to make sure we don't get penalized for sudden transaction spikes.
+
+00:02:14.900 --> 00:02:19.000
+Asha: Good call Sam. Let's touch base on that during the mid-sprint checkpoint.
+
+00:02:19.300 --> 00:02:22.500
+Ravi: Sounds like a solid kickoff. Let's get to work!
