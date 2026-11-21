@@ -13,7 +13,8 @@ import {
   BarChart3,
   LogOut,
   User as UserIcon,
-  Globe
+  Globe,
+  Ticket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getUser, clearAuth, AuthUser } from "@/lib/auth";
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { href: "/affected", label: "Affected Work", icon: AlertTriangle },
   { href: "/ledger", label: "Decision Ledger", icon: Layers },
   { href: "/my-week", label: "My Week", icon: CalendarCheck2 },
+  { href: "/mock-tracker", label: "Issue Tracker", icon: Ticket },
   { href: "/audit", label: "Audit Log", icon: ShieldCheck },
   { href: "/eval", label: "Evaluation", icon: BarChart3 },
 ];

@@ -324,3 +324,32 @@ def test_delete_meeting_privacy_endpoint(client, db):
     # 5. Non-existent meeting returns 404
     assert client.delete("/meetings/999999").status_code == 404
 
+
+def test_create_roster_person_api(client, db):
+    """Test dynamically adding a person to the roster via POST /meetings/roster/people."""
+    res = client.post(
+        "/meetings/roster/people",
+        json={
+            "name": "Original Engineer",
+            "email": "engineer@customorg.io",
+            "tracker_id": "eng1",
+            "slack_id": "UENG1",
+        },
+    )
+    assert res.status_code == 201
+    data = res.json()
+    assert data["name"] == "Original Engineer"
+    assert data["email"] == "engineer@customorg.io"
+    assert "id" in data
+
+    # Verify duplicate is rejected
+    dup_res = client.post(
+        "/meetings/roster/people",
+        json={
+            "name": "Original Engineer",
+            "email": "another@customorg.io",
+            "tracker_id": "eng2",
+        },
+    )
+    assert dup_res.status_code == 400
+

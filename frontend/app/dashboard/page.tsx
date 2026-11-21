@@ -29,6 +29,7 @@ import {
   fetchUnmappedSpeakers,
   patchSpeaker,
   fetchRoster,
+  createRosterPerson,
   fetchConfig,
   resetDemoData,
   MeetingSummary,
@@ -52,8 +53,8 @@ export default function MeetingsPage() {
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [title, setTitle] = useState<string>("");
-  const [dateVal, setDateVal] = useState<string>("2026-11-21");
-  const [project, setProject] = useState<string>("Payments Revamp");
+  const [dateVal, setDateVal] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [project, setProject] = useState<string>("");
   const [region, setRegion] = useState<string>("");
   const [release, setRelease] = useState<string>("");
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -64,6 +65,11 @@ export default function MeetingsPage() {
   const [roster, setRoster] = useState<PersonItem[]>([]);
   const [speakerSelections, setSpeakerSelections] = useState<Record<string, number>>({});
   const [isSavingSpeaker, setIsSavingSpeaker] = useState<boolean>(false);
+  const [isAddingPerson, setIsAddingPerson] = useState<boolean>(false);
+  const [newPersonName, setNewPersonName] = useState<string>("");
+  const [newPersonEmail, setNewPersonEmail] = useState<string>("");
+  const [newPersonTracker, setNewPersonTracker] = useState<string>("");
+  const [isCreatingPerson, setIsCreatingPerson] = useState<boolean>(false);
 
   const addToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -198,6 +204,36 @@ export default function MeetingsPage() {
       addToast(err.message || "Failed to map speaker", "error");
     } finally {
       setIsSavingSpeaker(false);
+    }
+  };
+
+  // Add person dynamically to roster
+  const handleCreatePerson = async (forSpeaker?: string) => {
+    if (!newPersonName.trim() || !newPersonEmail.trim()) {
+      addToast("Name and email are required to add to roster", "error");
+      return;
+    }
+    try {
+      setIsCreatingPerson(true);
+      const trackerId = newPersonTracker.trim() || newPersonName.trim().toLowerCase().replace(/\s+/g, ".");
+      const created = await createRosterPerson({
+        name: newPersonName.trim(),
+        email: newPersonEmail.trim().toLowerCase(),
+        tracker_id: trackerId,
+      });
+      setRoster((prev) => [...prev, created]);
+      if (forSpeaker) {
+        setSpeakerSelections((prev) => ({ ...prev, [forSpeaker]: created.id }));
+      }
+      setNewPersonName("");
+      setNewPersonEmail("");
+      setNewPersonTracker("");
+      setIsAddingPerson(false);
+      addToast(`Added "${created.name}" to team roster!`, "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to create team member", "error");
+    } finally {
+      setIsCreatingPerson(false);
     }
   };
 
@@ -495,11 +531,17 @@ export default function MeetingsPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Payments Revamp"
+                    placeholder="e.g. Core Banking, Mobile App"
                     value={project}
                     onChange={(e) => setProject(e.target.value)}
+                    list="existing-projects-list"
                     className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
                   />
+                  <datalist id="existing-projects-list">
+                    {Array.from(new Set(meetings.map((m) => m.project).filter(Boolean))).map((p) => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -628,6 +670,73 @@ export default function MeetingsPage() {
                 ))}
               </div>
             )}
+
+            {/* Quick Add Person to Roster */}
+            <div className="pt-3 border-t border-slate-100">
+              {!isAddingPerson ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingPerson(true);
+                    if (unmappedSpeakers.length > 0) {
+                      setNewPersonName(unmappedSpeakers[0].speaker_raw);
+                      setNewPersonEmail(
+                        `${unmappedSpeakers[0].speaker_raw.toLowerCase().replace(/\s+/g, ".")}@example.com`
+                      );
+                    }
+                  }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                >
+                  <Users className="w-3.5 h-3.5" /> + Add New Team Member to Roster
+                </button>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                  <div className="font-semibold text-xs text-slate-800">Add New Team Member</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="Full Name *"
+                      value={newPersonName}
+                      onChange={(e) => setNewPersonName(e.target.value)}
+                      className="border border-slate-300 rounded p-1.5 bg-white"
+                    />
+                    <input
+                      type="email"
+                      placeholder="email@example.com *"
+                      value={newPersonEmail}
+                      onChange={(e) => setNewPersonEmail(e.target.value)}
+                      className="border border-slate-300 rounded p-1.5 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="Tracker ID (optional)"
+                      value={newPersonTracker}
+                      onChange={(e) => setNewPersonTracker(e.target.value)}
+                      className="border border-slate-300 rounded p-1.5 bg-white text-xs w-full"
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingPerson(false)}
+                        className="px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isCreatingPerson}
+                        onClick={() => handleCreatePerson(unmappedSpeakers[0]?.speaker_raw)}
+                        className="px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {isCreatingPerson ? "Adding..." : "Save Member"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex justify-end pt-4 mt-4 border-t border-slate-100">
               <button

@@ -404,6 +404,18 @@ export async function fetchRoster(): Promise<PersonItem[]> {
   return apiRequest<PersonItem[]>("/meetings/roster/people");
 }
 
+export async function createRosterPerson(data: {
+  name: string;
+  email: string;
+  tracker_id: string;
+  slack_id?: string;
+}): Promise<PersonItem> {
+  return apiRequest<PersonItem>("/meetings/roster/people", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function fetchConfig(): Promise<ConfigResponse> {
   return apiRequest<ConfigResponse>("/config");
 }

@@ -31,11 +31,12 @@ import {
   DigestResponse,
   OutboxItem,
 } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 export default function MyWeekPage() {
   const [people, setPeople] = useState<PersonSummary[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
-  const [simulatedDate, setSimulatedDate] = useState<string>("2026-11-20");
+  const [simulatedDate, setSimulatedDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [activeTab, setActiveTab] = useState<"week" | "digest" | "outbox">("week");
   const [digestViewMode, setDigestViewMode] = useState<"html" | "text">("html");
 
@@ -57,8 +58,15 @@ export default function MyWeekPage() {
         const roster = await fetchPeople();
         setPeople(roster);
         if (roster.length > 0) {
-          const ravi = roster.find((p) => p.name.toLowerCase().includes("ravi"));
-          setSelectedPersonId(ravi ? ravi.id : roster[0].id);
+          const currentUser = getUser();
+          const matched = currentUser
+            ? roster.find(
+                (p) =>
+                  (p.email && currentUser.email && p.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                  (p.name && currentUser.full_name && p.name.toLowerCase() === currentUser.full_name.toLowerCase())
+              )
+            : null;
+          setSelectedPersonId(matched ? matched.id : roster[0].id);
         }
       } catch (err: any) {
         showToast(err.message || "Failed to load people roster");

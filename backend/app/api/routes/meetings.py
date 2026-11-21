@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.models.enums import MeetingStatus, ItemType, ReviewState, AlertState
 from app.models.models import Meeting, Utterance, Person, Item, Alert, User, ProjectMember
-from app.schemas.schemas import MeetingRead, UtteranceRead, PersonRead
+from app.schemas.schemas import MeetingRead, UtteranceRead, PersonRead, PersonCreate
 from app.services.ingestion import ingest_meeting, patch_meeting_speaker
 from app.services.extraction import extract_meeting_items
 from app.api.deps import get_current_user, verify_project_access
@@ -166,6 +166,33 @@ def list_meetings(db: Session = Depends(get_db)):
 def get_roster_people(db: Session = Depends(get_db)):
     """Get all roster people for speaker or owner assignment."""
     return db.query(Person).order_by(Person.name.asc()).all()
+
+
+@router.post("/roster/people", response_model=PersonRead, status_code=status.HTTP_201_CREATED)
+def create_roster_person(
+    payload: PersonCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a new person to the roster."""
+    existing = db.query(Person).filter(
+        (Person.email == payload.email) | (Person.name == payload.name)
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A person with this name or email already exists in the roster."
+        )
+    person = Person(
+        name=payload.name,
+        email=payload.email,
+        tracker_id=payload.tracker_id,
+        slack_id=payload.slack_id,
+    )
+    db.add(person)
+    db.commit()
+    db.refresh(person)
+    return person
 
 
 @router.get("/{meeting_id}/unmapped-speakers")

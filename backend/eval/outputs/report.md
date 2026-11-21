@@ -1,9 +1,9 @@
 # DECIDR EVALUATION REPORT
 
-**Date:** 2026-11-21T16:21:00.642832+00:00  
+**Date:** 2026-11-21T16:43:00.750552+00:00  
 **Model:** `gemini-1.5-pro`  
 **LLM Mode:** `live`  
-**Git Commit:** `fac8b1c5e3f61f65265d1e4e564cf03041ac0eb2`  
+**Git Commit:** `165bfb12af179f03f2d1573f7bf611358f09a710`  
 **Dataset:** `development (M1-M4)`  
 
 ---
