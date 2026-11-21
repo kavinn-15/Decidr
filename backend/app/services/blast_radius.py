@@ -309,6 +309,7 @@ def calculate_blast_radius(
             "owner": t.owner.name if t.owner else "Unassigned",
             "due_date": t.due_date.isoformat() if t.due_date else None,
             "estimate_hours": t.estimate_hours,
+            "estimate_points": getattr(t, "estimate_points", None),
             "provisional": t.provisional,
             "depth": item_data["depth"],
             "decision_id": item_data["decision_id"],
@@ -336,6 +337,7 @@ def calculate_blast_radius(
                 "owner": t.owner.name if t.owner else "Unassigned",
                 "due_date": t.due_date.isoformat() if t.due_date else None,
                 "estimate_hours": t.estimate_hours,
+                "estimate_points": getattr(t, "estimate_points", None),
                 "reason": "needs confirmation, nothing changed",
                 "status_badge": "needs_confirmation",
             })
@@ -367,21 +369,37 @@ def calculate_blast_radius(
             "owner": t.owner.name if t.owner else "Unassigned",
             "due_date": t.due_date.isoformat() if t.due_date else None,
             "estimate_hours": t.estimate_hours,
+            "estimate_points": getattr(t, "estimate_points", None),
             "region": task_region,
             "reason": reason,
         })
 
-    # 5. Hours at Risk Calculation (Invariant 10: Never guess an estimate)
+    # 5. Hours and Effort at Risk Calculation (Invariant 10: Never guess an estimate)
     hours_at_risk = 0.0
+    points_at_risk = 0.0
     unestimated_count = 0
 
     for item_data in sorted_affected:
         t: Task = item_data["task"]
         if t.status in (TaskStatus.open, TaskStatus.at_risk):
+            has_estimate = False
             if t.estimate_hours is not None:
                 hours_at_risk += float(t.estimate_hours)
-            else:
+                has_estimate = True
+            if getattr(t, "estimate_points", None) is not None:
+                points_at_risk += float(t.estimate_points)
+                has_estimate = True
+            if not has_estimate:
                 unestimated_count += 1
+
+    effort_parts = []
+    if hours_at_risk > 0:
+        effort_parts.append(f"{round(hours_at_risk, 1)} hours")
+    if points_at_risk > 0:
+        effort_parts.append(f"{round(points_at_risk, 1)} story points")
+    if unestimated_count > 0:
+        effort_parts.append(f"{unestimated_count} tasks without estimate")
+    effort_summary = ", ".join(effort_parts) if effort_parts else "0 hours at risk"
 
     direct_count = sum(1 for x in affected_list if x["depth"] == 1)
     indirect_count = sum(1 for x in affected_list if x["depth"] > 1)
@@ -407,7 +425,9 @@ def calculate_blast_radius(
         },
         "metrics": {
             "hours_at_risk": round(hours_at_risk, 1),
+            "points_at_risk": round(points_at_risk, 1),
             "unestimated_count": unestimated_count,
+            "effort_summary": effort_summary,
             "total_affected": len(affected_list),
             "direct_affected": direct_count,
             "indirect_affected": indirect_count,

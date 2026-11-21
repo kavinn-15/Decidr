@@ -74,6 +74,7 @@ class ProposalState(str, Enum):
 
 class ActionType(str, Enum):
     mark_decision_at_risk = "mark_decision_at_risk"
+    mark_task_at_risk = "mark_task_at_risk"
     comment_task = "comment_task"
     reopen_task = "reopen_task"
     create_task = "create_task"

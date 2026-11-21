@@ -100,6 +100,14 @@ def _build_action_payload(session: Session, action: ChangeAction) -> dict[str, A
             "idempotency_key": action.idempotency_key,
         }
 
+    elif atype == ActionType.mark_task_at_risk:
+        return {
+            "type": "local.mark_task_at_risk",
+            "task_id": action.target_id,
+            "status": "at_risk",
+            "idempotency_key": action.idempotency_key,
+        }
+
     elif atype == ActionType.pause_reminders:
         reminders = (
             session.query(Reminder)
@@ -201,6 +209,13 @@ def _execute_single_action(
             raise ValueError(f"Decision {action.target_id} not found")
         decision.status = DecisionStatus.at_risk
         return {"decision_id": decision.id, "status": "at_risk"}
+
+    elif atype == ActionType.mark_task_at_risk:
+        task = session.get(Task, action.target_id) if action.target_type == "task" else None
+        if not task:
+            raise ValueError(f"Task {action.target_id} not found")
+        task.status = TaskStatus.at_risk
+        return {"task_id": task.id, "status": "at_risk"}
 
     elif atype == ActionType.pause_reminders:
         reminders = (

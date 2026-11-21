@@ -152,6 +152,7 @@ class PremiseBase(BaseSchema):
     scope_region: Optional[str] = None
     valid_from: Optional[date] = None
     valid_until: Optional[date] = None
+    confidence: float = 1.0
     state: PremiseState = PremiseState.proposed
     status: PremiseStatus = PremiseStatus.holding
     confirmed_by: Optional[str] = None
@@ -195,6 +196,7 @@ class TaskBase(BaseSchema):
     owner_id: Optional[int] = None
     due_date: Optional[date] = None
     estimate_hours: Optional[float] = None
+    estimate_points: Optional[float] = None
     provisional: bool = True
     status: TaskStatus = TaskStatus.open
     tracker_ref: Optional[str] = None

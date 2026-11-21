@@ -48,3 +48,13 @@ def init_db(engine_instance: Engine | None = None) -> None:
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE premises ADD COLUMN confidence FLOAT;"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE tasks ADD COLUMN estimate_points FLOAT;"))
+            conn.commit()
+        except Exception:
+            pass

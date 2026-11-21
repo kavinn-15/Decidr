@@ -22,13 +22,14 @@ INSTRUCTIONS:
 For EACH candidate premise, evaluate whether the focal utterance:
 - "supports": The utterance confirms, re-affirms, or reinforces that the premise holds true (e.g. "budget still holds", "vendor confirmed T+0").
 - "undermines": The utterance contradicts, challenges, casts doubt, or negates the premise (e.g. vendor actually only supports T+2; budget was slashed; person is going on leave earlier).
+- "uncertain": The utterance touches upon the premise or raises doubt/questions, but lacks definitive factual certainty (e.g. "I heard they might not support it", "Does vendor A support this?", speculative or unverified statements).
 - "unrelated": The utterance has no direct factual bearing on the premise.
 
 RULES:
 - Return a list "evaluations" where each entry corresponds to a candidate premise.
 - For each entry:
   - premise_id: integer matching the candidate premise id
-  - verdict: strictly in ["supports", "undermines", "unrelated"]
+  - verdict: strictly in ["supports", "undermines", "unrelated", "uncertain"]
   - confidence: float between 0.0 and 1.0
   - explanation: concise one-sentence explanation
   - new_quote: an EXACT verbatim substring from the focal utterance justifying the verdict (empty string "" if unrelated)

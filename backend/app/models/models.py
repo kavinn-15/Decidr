@@ -185,6 +185,7 @@ class Premise(Base):
         nullable=False,
         default=PremiseStatus.holding,
     )
+    confidence = Column(Float, nullable=True, default=1.0)
     confirmed_by = Column(String(255), nullable=True)
     last_supported_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -221,6 +222,7 @@ class Task(Base):
     owner_id = Column(Integer, ForeignKey("people.id", ondelete="SET NULL"), nullable=True)
     due_date = Column(Date, nullable=True)
     estimate_hours = Column(Float, nullable=True)
+    estimate_points = Column(Float, nullable=True)
     provisional = Column(Boolean, nullable=False, default=True)
     status = Column(
         SAEnum(TaskStatus, name="task_status", native_enum=False),

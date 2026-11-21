@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "date": "2026-11-21T13:35:11.511359+00:00",
+    "date": "2026-11-21T14:30:12.311911+00:00",
     "model": "gemini-1.5-pro",
     "llm_mode": "live",
-    "git_commit": "6d2b91d3568a0cd2b7e40dad04757a72d65b3cd8",
+    "git_commit": "30060876c6e55693afef548e6d61be7025874571",
     "dataset": "development (M1-M4)",
     "dataset_is_heldout": false
   },
@@ -74,7 +74,7 @@
       "correctness": 0.7143,
       "matched": 5,
       "total_gold": 7,
-      "total_generated": 12
+      "total_generated": 17
     },
     "writes_without_approval": 0
   },

@@ -24,7 +24,7 @@ logger = logging.getLogger("decidr.premise_watch")
 
 class PremiseWatchEvaluation(BaseModel):
     premise_id: int
-    verdict: Literal["supports", "undermines", "unrelated"]
+    verdict: Literal["supports", "undermines", "unrelated", "uncertain"]
     confidence: float = Field(..., ge=0.0, le=1.0)
     explanation: str
     new_quote: str = ""
@@ -210,7 +210,7 @@ def watch_meeting_utterances(
             new_quote = eval_item.new_quote
 
             # Substring quote validation (Invariant 6)
-            if verdict in ("undermines", "supports"):
+            if verdict in ("undermines", "supports", "uncertain") and new_quote:
                 if not _is_exact_substring(new_quote, utterance.text):
                     logger.warning(
                         f"Dropping premise watch quote hallucination: '{new_quote}' not in utterance #{utterance.id} "
@@ -298,6 +298,39 @@ def watch_meeting_utterances(
                     },
                     db=db,
                 )
+
+            elif verdict == "uncertain":
+                # Uncertain evidence: NEVER treat as a confirmed premise break!
+                # If premise was holding, set to shaky and create a possible break card for human review.
+                prev_st = target_premise.status.value
+                if target_premise.status == PremiseStatus.holding:
+                    target_premise.status = PremiseStatus.shaky
+
+                alert = Alert(
+                    kind=AlertKind.premise_break,
+                    meeting_id=meeting.id,
+                    utterance_id=utterance.id,
+                    premise_id=target_premise.id,
+                    decision_id=target_premise.decision_id,
+                    verdict="possible_break_please_confirm",
+                    old_quote=target_premise.evidence_quote,
+                    new_quote=new_quote,
+                    explanation=f"[Uncertain evidence, please confirm] Speaker: {utterance.speaker_raw}. {eval_item.explanation}",
+                    state=AlertState.open,
+                )
+                db.add(alert)
+                db.flush()
+
+                log(
+                    actor=actor,
+                    action="flag_uncertain_premise_evidence",
+                    entity_type="premise",
+                    entity_id=target_premise.id,
+                    before={"status": prev_st},
+                    after={"status": target_premise.status.value, "confidence": conf, "verdict": "uncertain"},
+                    db=db,
+                )
+                created_alerts.append(alert)
 
     db.commit()
     return created_alerts

@@ -176,6 +176,28 @@ def generate_repair_plan(
                 db.add(act)
                 actions.append(act)
 
+    # Rule 2b: mark_task_at_risk for each affected task
+    for task_info in affected_tasks:
+        t_id = task_info["id"]
+        ikey = make_idempotency_key(alert.id, ActionType.mark_task_at_risk, t_id)
+        if ikey not in added_keys:
+            added_keys.add(ikey)
+            act = ChangeAction(
+                proposal_id=proposal.id,
+                action_type=ActionType.mark_task_at_risk,
+                target_type="task",
+                target_id=t_id,
+                payload={
+                    "task_id": t_id,
+                    "status": "at_risk",
+                    "reason": f"Underlying premise P{premise_id_val} broken: {root_premise_text}",
+                },
+                idempotency_key=ikey,
+                state=ActionState.draft,
+            )
+            db.add(act)
+            actions.append(act)
+
     # Rule 3: pause_reminders for each affected task
     pause_reason = f"Pending contract SLA clarification or premise resolution for P{premise_id_val}: {root_premise_text}"
     for task_info in affected_tasks:
