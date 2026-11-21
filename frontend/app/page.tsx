@@ -19,11 +19,13 @@ import {
   X,
   Check,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import {
   fetchMeetings,
   uploadMeeting,
   processMeeting,
+  deleteMeeting,
   fetchUnmappedSpeakers,
   patchSpeaker,
   fetchRoster,
@@ -196,6 +198,20 @@ export default function MeetingsPage() {
       addToast(err.message || "Failed to map speaker", "error");
     } finally {
       setIsSavingSpeaker(false);
+    }
+  };
+
+  // Delete Meeting (Privacy Compliance)
+  const handleDeleteMeeting = async (meetingId: number, meetingTitle: string) => {
+    if (!confirm(`Permanently purge "${meetingTitle}"?\n\nThis removes transcript text and derived items in accordance with privacy compliance, keeping only an append-only audit entry.`)) {
+      return;
+    }
+    try {
+      await deleteMeeting(meetingId);
+      addToast(`Meeting transcript and derived items purged cleanly.`, "success");
+      loadData();
+    } catch (err: any) {
+      addToast(err.message || "Failed to delete meeting", "error");
     }
   };
 
@@ -388,6 +404,13 @@ export default function MeetingsPage() {
                             Review Queue <ChevronRight className="w-3.5 h-3.5" />
                           </Link>
                         )}
+                        <button
+                          onClick={() => handleDeleteMeeting(m.id, m.title)}
+                          title="Purge transcript & derived items (Privacy DELETE)"
+                          className="inline-flex items-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   );

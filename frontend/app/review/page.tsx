@@ -188,6 +188,17 @@ export default function ReviewPage() {
     }
   }, []);
 
+  // Handle open_plan from URL query parameter (for direct navigation from Affected Work or alerts)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const planAlertId = params.get("open_plan") || params.get("alert_id");
+      if (planAlertId && !isRepairModalOpen) {
+        handleOpenRepairPlanForAlert(Number(planAlertId));
+      }
+    }
+  }, [selectedMeetingId]);
+
   useEffect(() => {
     if (selectedMeetingId !== null) {
       loadMeetingData(selectedMeetingId);

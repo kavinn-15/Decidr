@@ -879,3 +879,36 @@ Implemented the complete, deterministic evaluation harness in `backend/eval/` an
 | **Writes Without Approval (Target 0)** | 0 | 0 | **0** |
 
 
+
+---
+
+## 2026-11-21: Task 17 Implementation — Demo-Proofing, Privacy Governance, and Automated Recording
+
+### Overview
+Hardened the entire platform for reliable, network-independent demonstrations and production operations:
+- **Deterministic Demo Reset (`scripts/demo_reset.py` & `make demo-reset`)**:
+  - Seeds roster with 6 team members.
+  - Ingests and processes Meeting 1 (`m1_2026-11-02.vtt`), extracts decisions, premises, tasks, links, and simulated approvals.
+  - Generates real tracker tickets in `tracker_tickets` table (`MOCK-T1` through `MOCK-T4`).
+  - Pre-loads Meeting 2 (`m2_2026-11-09.vtt`) in `uploaded` status ready for live or replay processing.
+  - Added REST endpoint `POST /demo/reset`.
+- **UI Screen Audit & Consistent Aesthetics**:
+  - Responsive layout verified at 1280px and 1920px viewports.
+  - Consistent alert card styling with prominent red/amber badges for Premise Break and Decision Conflict cards.
+  - Side-by-side two-column quote comparisons with speaker attribution and meeting badges.
+  - Added direct "Review Repair Plan" navigation from `/affected` trigger card to `/review?open_plan={alert_id}`.
+  - Automatic query-param modal opener on `/review` for seamless drill-down.
+- **Privacy & Data Governance (`DELETE /meetings/{id}` & `docs/PRIVACY.md`)**:
+  - Implemented immutable privacy purge route `DELETE /meetings/{id}` that permanently erases utterances and derived items while preserving a non-content audit record (`retained_content: "none"`).
+  - Authored comprehensive enterprise privacy policy documenting consent workflows, LLM boundary minimization, and local data persistence.
+- **Presenter Demo Script (`docs/DEMO.md`)**:
+  - Authored exact 3-minute timed presenter script with cue timings, verbatim talking points, and an offline network failure fallback playbook.
+- **Automated Playwright Video Recording (`scripts/record_demo.py`)**:
+  - Playwright automation driving the full 3-minute demo path with video recording enabled, outputting `docs/backup-demo.webm`.
+- **Comprehensive Documentation (`README.md`)**:
+  - Project overview, under-10-command setup, Mermaid architecture diagram, environment variables table, test, demo, and evaluation instructions.
+
+### Verified Invariants
+- **Invariant 2 (Zero Unapproved External Writes)**: Maintained across all demo flows and repair executions.
+- **Invariant 6 (Verbatim Substring Quotes)**: Verified across M1 and M2 extraction and premise-break alerts.
+- **Invariant 9 (Replay Mode Offline Demo)**: Zero network calls required during replay processing.

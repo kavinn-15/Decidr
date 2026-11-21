@@ -256,3 +256,84 @@ def map_unmapped_speaker(
         return result
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{meeting_id}", status_code=status.HTTP_200_OK)
+def delete_meeting(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Privacy & Right-to-be-Forgotten Endpoint (Task 17 Requirement 5).
+    Removes transcript text and all derived items (utterances, decisions, premises, tasks, links, alerts),
+    keeping ONLY a non-content append-only audit entry.
+    """
+    from app.models.models import Decision, DecisionVersion, Premise, Task, Link, Alert, ChangeProposal, ChangeAction
+    from app.services.audit import log as audit_log
+
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Meeting #{meeting_id} not found",
+        )
+
+    # 1. Delete derived alerts and change proposals
+    alerts = db.query(Alert).filter(Alert.meeting_id == meeting_id).all()
+    for a in alerts:
+        if a.proposal_id:
+            db.query(ChangeAction).filter(ChangeAction.proposal_id == a.proposal_id).delete(synchronize_session=False)
+            db.query(ChangeProposal).filter(ChangeProposal.id == a.proposal_id).delete(synchronize_session=False)
+        db.delete(a)
+
+    # 2. Delete derived items, tasks, decisions, premises, links
+    items = db.query(Item).filter(Item.meeting_id == meeting_id).all()
+    for item in items:
+        # Tasks linked to item
+        tasks = db.query(Task).filter(Task.item_id == item.id).all()
+        for t in tasks:
+            db.query(Link).filter((Link.source_type == "task") & (Link.source_id == t.id)).delete(synchronize_session=False)
+            db.query(Link).filter((Link.target_type == "task") & (Link.target_id == t.id)).delete(synchronize_session=False)
+            db.delete(t)
+
+        # Decisions linked to item
+        decs = db.query(Decision).filter(Decision.item_id == item.id).all()
+        for d in decs:
+            db.query(Premise).filter(Premise.decision_id == d.id).delete(synchronize_session=False)
+            db.query(DecisionVersion).filter(DecisionVersion.decision_id == d.id).delete(synchronize_session=False)
+            db.query(Link).filter((Link.source_type == "decision") & (Link.source_id == d.id)).delete(synchronize_session=False)
+            db.query(Link).filter((Link.target_type == "decision") & (Link.target_id == d.id)).delete(synchronize_session=False)
+            db.delete(d)
+
+        db.delete(item)
+
+    # 3. Delete raw dialogue utterances (transcript text)
+    db.query(Utterance).filter(Utterance.meeting_id == meeting_id).delete(synchronize_session=False)
+
+    # 4. Remove meeting record
+    db.delete(meeting)
+    db.commit()
+
+    # 5. Non-content append-only audit entry (Invariant 3)
+    audit_log(
+        actor="privacy_officer",
+        action="delete_meeting",
+        entity_type="meeting",
+        entity_id=meeting_id,
+        before=None,
+        after={
+            "deleted": True,
+            "title_redacted": True,
+            "transcript_purged": True,
+            "derived_items_purged": True,
+            "retained_content": "none",
+        },
+        db=db,
+    )
+
+    return {
+        "status": "purged",
+        "meeting_id": meeting_id,
+        "message": "Transcript text and derived items permanently removed. Non-content audit log preserved.",
+    }
+

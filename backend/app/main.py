@@ -102,8 +102,8 @@ def reset_demo_database():
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Resetting demo data is disabled because DEMO_MODE is false.",
         )
-    from scripts.seed import seed_database
-    seed_database()
+    from scripts.demo_reset import run_demo_reset
+    run_demo_reset()
     return {"status": "ok", "message": "Demo data reset successfully"}
 
 

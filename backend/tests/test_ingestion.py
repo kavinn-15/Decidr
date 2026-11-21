@@ -280,3 +280,47 @@ Guest: Need mapping.
     res_utts_after = client.get(f"/meetings/{meeting_id}/utterances")
     utts_after = res_utts_after.json()
     assert all(not u["is_unmapped"] for u in utts_after)
+
+
+def test_delete_meeting_privacy_endpoint(client, db):
+    """
+    Test DELETE /meetings/{id} (Task 17 Requirement 5).
+    Asserts transcript text and derived items are deleted, keeping a non-content audit log entry.
+    """
+    from app.models.models import AuditLog, Utterance, Item
+
+    # 1. Create a meeting with utterances
+    vtt = b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nUser: Confidential discussion."
+    res = client.post(
+        "/meetings",
+        data={"title": "Private Discussion", "date": "2026-11-21", "project": "Secret"},
+        files={"file": ("private.vtt", io.BytesIO(vtt), "text/vtt")},
+    )
+    assert res.status_code == 201
+    m_id = res.json()["id"]
+
+    # Verify utterances exist
+    assert db.query(Utterance).filter(Utterance.meeting_id == m_id).count() == 1
+
+    # 2. DELETE /meetings/{id}
+    del_res = client.delete(f"/meetings/{m_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "purged"
+
+    # 3. Verify utterances and meeting are gone
+    assert db.query(Utterance).filter(Utterance.meeting_id == m_id).count() == 0
+    assert client.get(f"/meetings/{m_id}/utterances").status_code == 404
+
+    # 4. Verify non-content audit entry exists
+    audit_entry = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_type == "meeting", AuditLog.entity_id == m_id, AuditLog.action == "delete_meeting")
+        .first()
+    )
+    assert audit_entry is not None
+    assert audit_entry.after.get("transcript_purged") is True
+    assert audit_entry.after.get("retained_content") == "none"
+
+    # 5. Non-existent meeting returns 404
+    assert client.delete("/meetings/999999").status_code == 404
+

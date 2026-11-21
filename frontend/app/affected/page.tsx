@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   Clock,
@@ -14,6 +15,7 @@ import {
   User,
   Info,
   Calendar,
+  Wrench,
 } from "lucide-react";
 import {
   fetchAlerts,
@@ -48,7 +50,7 @@ export default function AffectedWorkPage() {
     setLoadingAlerts(true);
     setError(null);
     try {
-      const res = await fetchAlerts("open");
+      const res = await fetchAlerts("all");
       setAlerts(res);
       if (res.length > 0) {
         setSelectedAlertId(res[0].id);
@@ -158,9 +160,20 @@ export default function AffectedWorkPage() {
                   Project: <strong className="text-slate-800">{data.project}</strong>
                 </span>
               </div>
-              <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                {data.trigger_evidence.meeting_title} ({data.trigger_evidence.meeting_date})
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  {data.trigger_evidence.meeting_title} ({data.trigger_evidence.meeting_date})
+                </div>
+                {data.alert_id && (
+                  <Link
+                    href={`/review?open_plan=${data.alert_id}`}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    Review Repair Plan
+                  </Link>
+                )}
               </div>
             </div>
 

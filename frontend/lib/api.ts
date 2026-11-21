@@ -375,6 +375,12 @@ export async function processMeeting(meetingId: number) {
   });
 }
 
+export async function deleteMeeting(meetingId: number): Promise<{ status: string; meeting_id: number; message: string }> {
+  return apiRequest<{ status: string; meeting_id: number; message: string }>(`/meetings/${meetingId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchUnmappedSpeakers(meetingId: number): Promise<UnmappedSpeakerItem[]> {
   return apiRequest<UnmappedSpeakerItem[]>(`/meetings/${meetingId}/unmapped-speakers`);
 }
