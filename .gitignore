@@ -57,6 +57,7 @@ htmlcov/
 !.env.example
 
 # OS & Editor
+docs/raw_video/
 .vscode/
 .idea/
 .DS_Store

@@ -9,6 +9,11 @@ from playwright.sync_api import sync_playwright
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
+backend_path = os.path.join(ROOT_DIR, "backend")
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+db_file = os.path.join(ROOT_DIR, "decidr.db").replace("\\", "/")
+os.environ["DATABASE_URL"] = f"sqlite:///{db_file}"
 os.chdir(ROOT_DIR)
 
 def log(msg: str):
@@ -113,74 +118,95 @@ def record_demo():
                 viewport={"width": 1280, "height": 720}
             )
             page = context.new_page()
+            page.on("console", lambda msg: log(f"  [Browser Console] {msg.type}: {msg.text}"))
+            page.on("pageerror", lambda err: log(f"  [Browser Error] {err}"))
 
             # --- Scene 1: Home / Meetings Overview (0:00 - 0:25) ---
             log("  -> Scene 1: Home & Meetings List")
-            page.goto("http://localhost:3000/", wait_until="networkidle")
-            page.wait_for_timeout(3000)
+            page.goto("http://localhost:3000/", wait_until="domcontentloaded")
+            page.wait_for_timeout(3500)
+            log(f"Page title: {page.title()}")
 
             # --- Scene 2: Process Meeting 2 (0:25 - 0:50) ---
             log("  -> Scene 2: Processing Meeting 2")
             process_btn = page.locator("button:has-text('Process')").first
-            if process_btn.is_visible():
-                process_btn.click()
-                log("     Clicked 'Process' on Meeting 2. Waiting for extraction...")
-                page.wait_for_timeout(5000)
-            else:
-                log("     Meeting 2 already processed or in review queue.")
+            try:
+                if process_btn.is_visible():
+                    process_btn.click()
+                    log("     Clicked 'Process' on Meeting 2. Waiting for extraction & watchdog...")
+                    page.wait_for_timeout(6000)
+                else:
+                    log("     'Process' button not currently visible.")
+            except Exception as e:
+                log(f"     Process button note: {e}")
+            page.wait_for_timeout(2500)
 
             # --- Scene 3: Review Queue & Premise Break Alert (0:50 - 1:25) ---
             log("  -> Scene 3: Review Queue & Premise Break Inspection")
-            page.goto("http://localhost:3000/review", wait_until="networkidle")
-            page.wait_for_timeout(3500)
+            page.goto("http://localhost:3000/review", wait_until="domcontentloaded")
+            page.wait_for_timeout(3000)
 
-            # Confirm the Premise Break
+            # Locate and show the Premise Break
             confirm_btn = page.locator("button:has-text('Confirm Break')").first
-            if confirm_btn.is_visible():
+            try:
+                confirm_btn.wait_for(state="visible", timeout=8000)
+                page.wait_for_timeout(3500)
                 log("     Clicking 'Confirm Break' on Premise Break alert...")
                 confirm_btn.click()
                 page.wait_for_timeout(3000)
+            except Exception as e:
+                log(f"     Confirm Break button note: {e}")
 
             # --- Scene 4: Blast Radius & Affected Work (1:25 - 2:00) ---
             log("  -> Scene 4: Affected Work & Blast Radius Analysis")
-            page.goto("http://localhost:3000/affected", wait_until="networkidle")
-            page.wait_for_timeout(4000)
+            page.goto("http://localhost:3000/affected", wait_until="domcontentloaded")
+            page.wait_for_timeout(4500)
 
+            # Inspect hours at risk and dependency chain
+            # Click 'Review Repair Plan'
             repair_plan_link = page.locator("a:has-text('Review Repair Plan'), button:has-text('Review Repair Plan')").first
-            if repair_plan_link.is_visible():
+            try:
+                repair_plan_link.wait_for(state="visible", timeout=8000)
                 log("     Opening Repair Plan from Affected Work...")
                 repair_plan_link.click()
                 page.wait_for_timeout(3500)
-            else:
-                page.goto("http://localhost:3000/review", wait_until="networkidle")
+            except Exception:
+                page.goto("http://localhost:3000/review", wait_until="domcontentloaded")
                 page.wait_for_timeout(2000)
 
             # --- Scene 5: Repair Plan Approval (2:00 - 2:25) ---
             log("  -> Scene 5: Repair Plan Approval Gate")
-            approve_btn = page.locator("button:has-text('Approve Selected Actions')").first
-            if approve_btn.is_visible():
-                log("     Clicking 'Approve Selected Actions'...")
+            approve_btn = page.locator("button:has-text('Approve Selected')").first
+            try:
+                approve_btn.wait_for(state="visible", timeout=8000)
+                page.wait_for_timeout(2500)
+                log("     Clicking 'Approve Selected'...")
                 approve_btn.click()
                 page.wait_for_timeout(3500)
+            except Exception as e:
+                log(f"     Approve button note: {e}")
 
             # --- Scene 6: My Week & Downstream Verification (2:25 - 2:45) ---
             log("  -> Scene 6: My Week & Broken Premise Warnings")
-            page.goto("http://localhost:3000/my-week", wait_until="networkidle")
-            page.wait_for_timeout(3500)
+            page.goto("http://localhost:3000/my-week", wait_until="domcontentloaded")
+            page.wait_for_timeout(4000)
 
             # --- Scene 7: Decision Ledger (2:45 - 3:00) ---
             log("  -> Scene 7: Decision Ledger & Audit Trace")
-            page.goto("http://localhost:3000/ledger", wait_until="networkidle")
+            page.goto("http://localhost:3000/ledger", wait_until="domcontentloaded")
             page.wait_for_timeout(3000)
-            row = page.locator("table tbody tr").first
-            if row.is_visible():
-                row.click()
-                page.wait_for_timeout(3000)
+            try:
+                row = page.locator("table tbody tr").first
+                if row.is_visible():
+                    row.click()
+                    page.wait_for_timeout(3500)
+            except Exception as e:
+                log(f"     Ledger row note: {e}")
 
             # --- Scene 8: Immutable Audit Log (3:00 - 3:15) ---
             log("  -> Scene 8: Audit Log Invariant Verification")
-            page.goto("http://localhost:3000/audit", wait_until="networkidle")
-            page.wait_for_timeout(4000)
+            page.goto("http://localhost:3000/audit", wait_until="domcontentloaded")
+            page.wait_for_timeout(4500)
 
             # Close context to flush video to disk
             context.close()
@@ -193,6 +219,7 @@ def record_demo():
                 log(f"[5/5] Success! Video saved to: {target_video} ({os.path.getsize(target_video)} bytes)")
             else:
                 log("[5/5] Warning: Video file path was not captured properly.")
+            shutil.rmtree(temp_video_dir, ignore_errors=True)
 
     finally:
         if backend_proc:

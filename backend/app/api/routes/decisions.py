@@ -203,13 +203,19 @@ def get_decision_detail(
         e.action in ("approve_decision", "create_decision", "create_item") for e in audit_entries
     )
     if not has_creation_log:
+        if decision.effective_from:
+            if isinstance(decision.effective_from, datetime):
+                created_iso = decision.effective_from.isoformat()
+            elif isinstance(decision.effective_from, date):
+                created_iso = datetime.combine(decision.effective_from, datetime.min.time(), tzinfo=timezone.utc).isoformat()
+            else:
+                created_iso = str(decision.effective_from)
+        else:
+            created_iso = datetime.now(timezone.utc).isoformat()
+
         status_timeline.append({
             "id": 0,
-            "created_at": (
-                datetime.combine(decision.effective_from, datetime.min.time(), tzinfo=timezone.utc)
-                if decision.effective_from
-                else datetime.now(timezone.utc)
-            ).isoformat(),
+            "created_at": created_iso,
             "actor": "reviewer",
             "action": "approve_decision",
             "status": "active",
