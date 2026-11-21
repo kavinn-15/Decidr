@@ -11,6 +11,7 @@ from app.models.enums import (
     PremiseState,
     PremiseStatus,
     TaskStatus,
+    AlertKind,
     AlertState,
     ProposalState,
     ActionType,
@@ -109,6 +110,7 @@ def get_meeting_review_queue(meeting_id: int, db: Session = Depends(get_db)) -> 
             "state": a.state.value,
             "decision_id": a.decision_id,
             "premise_id": a.premise_id,
+            "proposal_id": a.proposal_id,
             "utterance_id": a.utterance_id,
             "utterance_idx": a.utterance.idx if a.utterance else None,
         })
@@ -881,6 +883,13 @@ def confirm_alert(
                 after={"status": premise.status.value, "alert_id": alert.id},
                 db=db,
             )
+            # Invariant: Blast radius is computed and a repair plan (change_proposal in state draft) is generated
+            from app.services.repair import generate_repair_plan
+            try:
+                proposal = generate_repair_plan(db, alert_id=alert.id, actor=payload.actor)
+                alert.proposal_id = proposal.id
+            except Exception as e:
+                logger.warning(f"Error generating repair plan on premise break confirmation: {e}")
 
     log(
         actor=payload.actor,
@@ -892,7 +901,7 @@ def confirm_alert(
         db=db,
     )
     db.commit()
-    return {"status": "confirmed", "alert_id": alert.id}
+    return {"status": "confirmed", "alert_id": alert.id, "proposal_id": alert.proposal_id}
 
 
 @router.post("/review/alerts/{alert_id}/dismiss")

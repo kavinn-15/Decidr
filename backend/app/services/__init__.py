@@ -28,6 +28,10 @@ from app.services.premise_watch import (
 from app.services.blast_radius import (
     calculate_blast_radius,
 )
+from app.services.repair import (
+    generate_repair_plan,
+    make_idempotency_key,
+)
 
 __all__ = [
     "log",
@@ -49,4 +53,6 @@ __all__ = [
     "watch_meeting_utterances",
     "run_expiry",
     "calculate_blast_radius",
+    "generate_repair_plan",
+    "make_idempotency_key",
 ]

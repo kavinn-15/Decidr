@@ -415,6 +415,15 @@ def calculate_blast_radius(
             "needs_confirmation_count": len(needs_confirmation_list),
         },
         "affected": affected_list,
+        "affected_decisions": [
+            {
+                "id": d_obj.id,
+                "text": d_obj.text,
+                "status": d_obj.status.value,
+                "depth": depth,
+            }
+            for d_id, (depth, _, _, d_obj) in affected_decisions.items()
+        ],
         "unaffected": unaffected_list,
         "needs_confirmation": needs_confirmation_list,
     }

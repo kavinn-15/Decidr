@@ -43,6 +43,7 @@ export interface AlertCard {
   state: "open" | "confirmed" | "dismissed";
   decision_id?: number | null;
   premise_id?: number | null;
+  proposal_id?: number | null;
   utterance_id?: number | null;
   utterance_idx?: number | null;
 }
@@ -298,8 +299,15 @@ export async function rejectLink(linkId: number, actor: string = "reviewer") {
   });
 }
 
-export async function confirmAlert(alertId: number, actor: string = "reviewer") {
-  return apiRequest(`/review/alerts/${alertId}/confirm`, {
+export interface ConfirmAlertResponse {
+  status: string;
+  alert_id: number;
+  proposal_id?: number | null;
+  verdict?: string;
+}
+
+export async function confirmAlert(alertId: number, actor: string = "reviewer"): Promise<ConfirmAlertResponse> {
+  return apiRequest<ConfirmAlertResponse>(`/review/alerts/${alertId}/confirm`, {
     method: "POST",
     body: JSON.stringify({ actor }),
   });
@@ -633,6 +641,102 @@ export async function fetchAlerts(state: string = "open"): Promise<AlertSummaryI
 
 export async function fetchAlertBlastRadius(alertId: number): Promise<BlastRadiusResponse> {
   return apiRequest<BlastRadiusResponse>(`/alerts/${alertId}/blast-radius`);
+}
+
+export interface ProposalAction {
+  id: number;
+  proposal_id: number;
+  action_type: string;
+  target_type: string;
+  target_id: number;
+  target_name?: string | null;
+  payload: Record<string, any>;
+  planned_payload: Record<string, any>;
+  idempotency_key: string;
+  state: "draft" | "approved" | "rejected" | "executed" | "failed";
+  executed_at?: string | null;
+  result?: Record<string, any> | null;
+}
+
+export interface Proposal {
+  id: number;
+  trigger_type: string;
+  trigger_id: number;
+  summary: string;
+  state: "draft" | "approved" | "rejected" | "executed";
+  created_at?: string | null;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  actions: ProposalAction[];
+}
+
+export interface PlannedProposalAction {
+  action_id: number;
+  action_type: string;
+  target_type: string;
+  target_id: number;
+  idempotency_key: string;
+  payload: Record<string, any>;
+}
+
+export interface PreviewProposalResponse {
+  dry_run: boolean;
+  proposal_id: number;
+  planned_actions: PlannedProposalAction[];
+}
+
+export async function fetchProposal(proposalId: number): Promise<Proposal> {
+  return apiRequest<Proposal>(`/proposals/${proposalId}`);
+}
+
+export async function approveProposal(
+  proposalId: number,
+  data?: {
+    actor?: string;
+    action_ids?: number[];
+    edited_payloads?: Record<number, any>;
+  }
+): Promise<any> {
+  return apiRequest(`/proposals/${proposalId}/approve`, {
+    method: "POST",
+    body: JSON.stringify(data || {}),
+  });
+}
+
+export async function rejectProposal(
+  proposalId: number,
+  actor: string = "reviewer"
+): Promise<any> {
+  return apiRequest(`/proposals/${proposalId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ actor }),
+  });
+}
+
+export async function previewProposal(
+  proposalId: number,
+  data?: {
+    action_ids?: number[];
+    edited_payloads?: Record<number, any>;
+  }
+): Promise<PreviewProposalResponse> {
+  if (data) {
+    return apiRequest<PreviewProposalResponse>(`/proposals/${proposalId}/preview`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  return apiRequest<PreviewProposalResponse>(`/proposals/${proposalId}/preview`);
+}
+
+export async function generateRepairPlanForAlert(alertId: number): Promise<Proposal> {
+  return apiRequest<Proposal>(`/alerts/${alertId}/repair-plan`, {
+    method: "POST",
+  });
+}
+
+export async function fetchAlertRepairPlan(alertId: number): Promise<Proposal> {
+  return apiRequest<Proposal>(`/alerts/${alertId}/repair-plan`);
 }
 
 

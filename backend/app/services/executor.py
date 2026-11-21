@@ -113,7 +113,7 @@ def _build_action_payload(session: Session, action: ChangeAction) -> dict[str, A
             "type": "local.pause_reminders",
             "task_id": action.target_id,
             "reminder_ids": [r.id for r in reminders],
-            "reason": payload.get("reason", "Proposal executed: paused reminders"),
+            "reason": payload.get("reason") or payload.get("pause_reason", "Proposal executed: paused reminders"),
             "idempotency_key": action.idempotency_key,
         }
 
@@ -212,7 +212,7 @@ def _execute_single_action(
             .all()
         )
         paused_ids = []
-        reason = payload.get("reason", "Proposal executed: paused reminders")
+        reason = payload.get("reason") or payload.get("pause_reason", "Proposal executed: paused reminders")
         for r in reminders:
             r.state = ReminderState.cancelled
             r.pause_reason = reason

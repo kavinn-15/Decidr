@@ -38,11 +38,50 @@ def list_alerts(
             "meeting_id": a.meeting_id,
             "decision_id": a.decision_id,
             "premise_id": a.premise_id,
+            "proposal_id": a.proposal_id,
             "old_quote": a.old_quote,
             "new_quote": a.new_quote,
             "explanation": a.explanation,
         })
     return results
+
+
+@router.get("/{alert_id}/repair-plan")
+def get_alert_repair_plan(
+    alert_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the repair plan proposal associated with this alert.
+    """
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail=f"Alert #{alert_id} not found")
+    if not alert.proposal_id:
+        raise HTTPException(status_code=404, detail=f"No repair proposal found for Alert #{alert_id}")
+    from app.api.routes.proposals import get_proposal
+    return get_proposal(alert.proposal_id, db=db)
+
+
+@router.post("/{alert_id}/repair-plan")
+def create_alert_repair_plan(
+    alert_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Generates a deterministic rule-based repair plan for this alert.
+    """
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail=f"Alert #{alert_id} not found")
+    from app.services.repair import generate_repair_plan
+    from app.api.routes.proposals import get_proposal
+    try:
+        proposal = generate_repair_plan(db, alert_id=alert.id)
+        db.commit()
+        return get_proposal(proposal.id, db=db)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{alert_id}/blast-radius")

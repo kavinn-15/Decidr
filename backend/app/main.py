@@ -13,6 +13,7 @@ from app.api.routes.review import router as review_router
 from app.api.routes.audit import router as audit_router
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.alerts import router as alerts_router
+from app.api.routes.proposals import router as proposals_router
 from app.services.premise_watch import run_expiry
 
 
@@ -57,6 +58,7 @@ app.include_router(review_router)
 app.include_router(audit_router)
 app.include_router(decisions_router)
 app.include_router(alerts_router)
+app.include_router(proposals_router)
 
 
 @app.get("/health")

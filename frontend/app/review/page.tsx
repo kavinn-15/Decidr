@@ -22,6 +22,9 @@ import {
   Send,
   X,
   Info,
+  Wrench,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 import {
   fetchMeetings,
@@ -40,6 +43,15 @@ import {
   rejectLink,
   confirmAlert,
   dismissAlert,
+  fetchProposal,
+  approveProposal,
+  rejectProposal,
+  previewProposal,
+  generateRepairPlanForAlert,
+  Proposal,
+  ProposalAction,
+  PlannedProposalAction,
+  PreviewProposalResponse,
   MeetingSummary,
   UtteranceItem,
   ReviewQueueResponse,
@@ -93,6 +105,15 @@ export default function ReviewPage() {
     scope_region?: string;
     scope_project?: string;
   } | null>(null);
+
+  // Repair Plan Modal State (Task 13)
+  const [activeProposal, setActiveProposal] = useState<Proposal | null>(null);
+  const [selectedActionIds, setSelectedActionIds] = useState<Set<number>>(new Set());
+  const [editedPayloads, setEditedPayloads] = useState<Record<number, Record<string, any>>>({});
+  const [isPreviewDryRun, setIsPreviewDryRun] = useState<boolean>(false);
+  const [dryRunData, setDryRunData] = useState<PreviewProposalResponse | null>(null);
+  const [isRepairModalOpen, setIsRepairModalOpen] = useState<boolean>(false);
+  const [executingProposal, setExecutingProposal] = useState<boolean>(false);
 
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const cardsContainerRef = useRef<HTMLDivElement>(null);
@@ -302,11 +323,136 @@ export default function ReviewPage() {
 
   const handleConfirmAlert = async (alertId: number) => {
     try {
-      await confirmAlert(alertId);
+      const res = await confirmAlert(alertId);
       addToast("Alert confirmed.", "success");
       if (selectedMeetingId) loadMeetingData(selectedMeetingId);
+      if (res?.proposal_id) {
+        handleOpenRepairPlan(res.proposal_id);
+      }
     } catch (err: any) {
       addToast(err.message, "error");
+    }
+  };
+
+  const handleOpenRepairPlan = async (proposalId: number) => {
+    try {
+      const prop = await fetchProposal(proposalId);
+      setActiveProposal(prop);
+      // Select all draft/approved actions by default
+      const initialSelected = new Set(
+        prop.actions
+          .filter((a) => a.state !== "rejected")
+          .map((a) => a.id)
+      );
+      setSelectedActionIds(initialSelected);
+      setEditedPayloads({});
+      setIsPreviewDryRun(false);
+      setDryRunData(null);
+      setIsRepairModalOpen(true);
+    } catch (err: any) {
+      addToast(err.message || "Failed to load repair plan", "error");
+    }
+  };
+
+  const handleOpenRepairPlanForAlert = async (alertId: number, proposalId?: number | null) => {
+    try {
+      if (proposalId) {
+        await handleOpenRepairPlan(proposalId);
+      } else {
+        const prop = await generateRepairPlanForAlert(alertId);
+        setActiveProposal(prop);
+        setSelectedActionIds(new Set(prop.actions.map((a) => a.id)));
+        setEditedPayloads({});
+        setIsPreviewDryRun(false);
+        setDryRunData(null);
+        setIsRepairModalOpen(true);
+        if (selectedMeetingId) loadMeetingData(selectedMeetingId);
+      }
+    } catch (err: any) {
+      addToast(err.message || "Failed to generate or load repair plan", "error");
+    }
+  };
+
+  const handleToggleActionSelect = (actionId: number) => {
+    setSelectedActionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(actionId)) {
+        next.delete(actionId);
+      } else {
+        next.add(actionId);
+      }
+      return next;
+    });
+  };
+
+  const handleEditActionPayload = (actionId: number, key: string, value: any) => {
+    setEditedPayloads((prev) => ({
+      ...prev,
+      [actionId]: {
+        ...(prev[actionId] || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleToggleDryRun = async (checked: boolean) => {
+    setIsPreviewDryRun(checked);
+    if (checked && activeProposal) {
+      try {
+        const preview = await previewProposal(activeProposal.id, {
+          action_ids: Array.from(selectedActionIds),
+          edited_payloads: editedPayloads,
+        });
+        setDryRunData(preview);
+      } catch (err: any) {
+        addToast(err.message || "Failed to compute dry-run preview", "error");
+      }
+    } else {
+      setDryRunData(null);
+    }
+  };
+
+  const handleApproveSelectedProposal = async () => {
+    if (!activeProposal) return;
+    if (selectedActionIds.size === 0) {
+      addToast("Please select at least one action to approve.", "error");
+      return;
+    }
+    try {
+      setExecutingProposal(true);
+      const res = await approveProposal(activeProposal.id, {
+        actor: "reviewer",
+        action_ids: Array.from(selectedActionIds),
+        edited_payloads: editedPayloads,
+      });
+      addToast(
+        `Repair plan executed! ${res.execution?.executed_count || 0} actions executed, ${res.execution?.skipped_count || 0} skipped.`,
+        "success"
+      );
+      // Reload updated proposal details to reflect executed state & ticket links
+      const updatedProp = await fetchProposal(activeProposal.id);
+      setActiveProposal(updatedProp);
+      if (selectedMeetingId) loadMeetingData(selectedMeetingId);
+    } catch (err: any) {
+      addToast(err.message || "Execution failed", "error");
+    } finally {
+      setExecutingProposal(false);
+    }
+  };
+
+  const handleRejectProposal = async () => {
+    if (!activeProposal) return;
+    try {
+      setExecutingProposal(true);
+      await rejectProposal(activeProposal.id, "reviewer");
+      addToast("Repair plan rejected. Zero external calls made.", "info");
+      const updatedProp = await fetchProposal(activeProposal.id);
+      setActiveProposal(updatedProp);
+      if (selectedMeetingId) loadMeetingData(selectedMeetingId);
+    } catch (err: any) {
+      addToast(err.message || "Failed to reject plan", "error");
+    } finally {
+      setExecutingProposal(false);
     }
   };
 
@@ -664,24 +810,40 @@ export default function ReviewPage() {
 
                       {/* Actions */}
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-rose-200/60">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDismissAlert(alert.id);
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-300"
-                        >
-                          Dismiss
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleConfirmAlert(alert.id);
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
-                        >
-                          Confirm Break
-                        </button>
+                        {alert.state !== "confirmed" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDismissAlert(alert.id);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-300"
+                          >
+                            Dismiss
+                          </button>
+                        )}
+                        {alert.state !== "confirmed" ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConfirmAlert(alert.id);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Confirm Break
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenRepairPlanForAlert(alert.id, alert.proposal_id);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5"
+                          >
+                            <Wrench className="w-3.5 h-3.5" />
+                            Review Repair Plan
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1205,6 +1367,396 @@ export default function ReviewPage() {
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REPAIR PLAN MODAL (Task 13) */}
+      {isRepairModalOpen && activeProposal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-indigo-600 text-white">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base">Review Repair Plan</h3>
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        activeProposal.state === "executed"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : activeProposal.state === "approved"
+                          ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                          : activeProposal.state === "rejected"
+                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                          : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      }`}
+                    >
+                      {activeProposal.state}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 truncate max-w-lg mt-0.5">
+                    {activeProposal.summary}
+                  </p>
+                </div>
+              </div>
+
+              {/* Header Right: Dry-run toggle & Close */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-medium text-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isPreviewDryRun}
+                    onChange={(e) => handleToggleDryRun(e.target.checked)}
+                    className="rounded text-indigo-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1">
+                    <Play className="w-3.5 h-3.5 text-amber-400" />
+                    Preview (Dry Run)
+                  </span>
+                </label>
+
+                <button
+                  onClick={() => setIsRepairModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Dry Run Banner */}
+            {isPreviewDryRun && (
+              <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-900 text-xs font-medium flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Dry Run Preview Active: Displaying exact outbound tracker payloads without making external calls.</span>
+                </div>
+                <button
+                  onClick={() => handleToggleDryRun(true)}
+                  className="text-[11px] text-amber-700 underline font-semibold flex items-center gap-1 hover:text-amber-900"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Recompute Preview
+                </button>
+              </div>
+            )}
+
+            {/* Actions List (Body) */}
+            <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-slate-50">
+              <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Proposed Repair Actions ({activeProposal.actions.length})</span>
+                <span className="text-[11px] font-normal text-slate-500 lowercase">
+                  Select actions to approve and edit payloads if necessary
+                </span>
+              </div>
+
+              {activeProposal.actions.map((act) => {
+                const isSelected = selectedActionIds.has(act.id);
+                const isExecuted = act.state === "executed";
+                const isRejected = act.state === "rejected" || activeProposal.state === "rejected";
+
+                // Planned payload for dry run or display
+                const plannedPayload =
+                  dryRunData?.planned_actions?.find((p) => p.action_id === act.id)?.payload ||
+                  act.planned_payload;
+
+                return (
+                  <div
+                    key={act.id}
+                    className={`rounded-xl border transition-all p-4 bg-white shadow-2xs ${
+                      isSelected
+                        ? "border-indigo-300 ring-1 ring-indigo-200"
+                        : "border-slate-200 opacity-80"
+                    }`}
+                  >
+                    {/* Action Card Top Bar */}
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={isExecuted || isRejected}
+                          onChange={() => handleToggleActionSelect(act.id)}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                        <span
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider ${
+                            act.action_type === "comment_task"
+                              ? "bg-blue-100 text-blue-800"
+                              : act.action_type === "mark_decision_at_risk"
+                              ? "bg-amber-100 text-amber-800"
+                              : act.action_type === "pause_reminders"
+                              ? "bg-purple-100 text-purple-800"
+                              : act.action_type === "reopen_task"
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {act.action_type.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-800">
+                          Target: {act.target_name || `${act.target_type} #${act.target_id}`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          key: {act.idempotency_key.slice(0, 10)}...
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded uppercase ${
+                            act.state === "executed"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : act.state === "approved"
+                              ? "bg-blue-100 text-blue-800"
+                              : act.state === "rejected"
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {act.state}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Content & Edit Box */}
+                    {isPreviewDryRun ? (
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                          Exact Outbound Payload to Execute:
+                        </div>
+                        <pre className="bg-slate-900 text-emerald-300 p-2.5 rounded-lg text-xs font-mono overflow-x-auto max-h-36">
+                          {JSON.stringify(plannedPayload, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 text-xs">
+                        {act.action_type === "comment_task" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                              Comment Content:
+                            </label>
+                            <textarea
+                              rows={2}
+                              disabled={isExecuted || isRejected}
+                              value={
+                                editedPayloads[act.id]?.comment ??
+                                act.payload?.comment ??
+                                act.payload?.text ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                handleEditActionPayload(act.id, "comment", e.target.value)
+                              }
+                              className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-100"
+                            />
+                          </div>
+                        )}
+
+                        {act.action_type === "mark_decision_at_risk" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                              Risk Reason:
+                            </label>
+                            <input
+                              type="text"
+                              disabled={isExecuted || isRejected}
+                              value={
+                                editedPayloads[act.id]?.reason ??
+                                act.payload?.reason ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                handleEditActionPayload(act.id, "reason", e.target.value)
+                              }
+                              className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-100"
+                            />
+                          </div>
+                        )}
+
+                        {act.action_type === "pause_reminders" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                              Pause Reason:
+                            </label>
+                            <input
+                              type="text"
+                              disabled={isExecuted || isRejected}
+                              value={
+                                editedPayloads[act.id]?.pause_reason ??
+                                act.payload?.pause_reason ??
+                                act.payload?.reason ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                handleEditActionPayload(act.id, "pause_reason", e.target.value)
+                              }
+                              className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-100"
+                            />
+                          </div>
+                        )}
+
+                        {act.action_type === "reopen_task" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                              Reopen Reason:
+                            </label>
+                            <input
+                              type="text"
+                              disabled={isExecuted || isRejected}
+                              value={
+                                editedPayloads[act.id]?.reason ??
+                                act.payload?.reason ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                handleEditActionPayload(act.id, "reason", e.target.value)
+                              }
+                              className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-100"
+                            />
+                          </div>
+                        )}
+
+                        {act.action_type === "create_task" && (
+                          <div className="space-y-1.5">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                Task Title:
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isExecuted || isRejected}
+                                value={
+                                  editedPayloads[act.id]?.title ??
+                                  act.payload?.title ??
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  handleEditActionPayload(act.id, "title", e.target.value)
+                                }
+                                className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 bg-white disabled:bg-slate-100"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                Description:
+                              </label>
+                              <textarea
+                                rows={2}
+                                disabled={isExecuted || isRejected}
+                                value={
+                                  editedPayloads[act.id]?.description ??
+                                  act.payload?.description ??
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  handleEditActionPayload(act.id, "description", e.target.value)
+                                }
+                                className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-800 bg-white disabled:bg-slate-100"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Execution Result & Links (Invariant: Show results with links to tickets) */}
+                    {isExecuted && act.result && (
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200">
+                        <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Executed successfully{" "}
+                            {act.executed_at &&
+                              `at ${new Date(act.executed_at).toLocaleTimeString()}`}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {act.result.ref && (
+                            <a
+                              href={`/mock-tracker`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-emerald-300 text-indigo-700 font-bold hover:bg-indigo-50 shadow-2xs"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+                              Ticket: {act.result.ref}
+                            </a>
+                          )}
+                          {act.result.url && (
+                            <a
+                              href={act.result.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-emerald-300 text-indigo-700 font-bold hover:bg-indigo-50 shadow-2xs"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+                              View Issue
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-500 font-medium">
+                <span className="font-bold text-slate-800">{selectedActionIds.size}</span> of{" "}
+                <span className="font-bold text-slate-800">{activeProposal.actions.length}</span> actions
+                selected
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRepairModalOpen(false)}
+                  className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+
+                {activeProposal.state !== "rejected" && activeProposal.state !== "executed" && (
+                  <button
+                    type="button"
+                    disabled={executingProposal}
+                    onClick={handleRejectProposal}
+                    className="px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 border border-rose-300 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Reject Plan
+                  </button>
+                )}
+
+                {activeProposal.state !== "rejected" && (
+                  <button
+                    type="button"
+                    disabled={executingProposal || selectedActionIds.size === 0}
+                    onClick={handleApproveSelectedProposal}
+                    className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {executingProposal ? (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                        Executing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Approve Selected ({selectedActionIds.size})
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
