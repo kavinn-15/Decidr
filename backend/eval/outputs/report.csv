@@ -1,0 +1,9 @@
+Metric,B1_Baseline,B2_Baseline,Decidr_Platform
+Decision Extraction (P / R),100.0% / 100.0%,100.0% / 100.0%,100.0% / 100.0%
+Action Extraction (P / R),100.0% / 100.0%,100.0% / 100.0%,100.0% / 100.0%
+Premise Extraction (P / R),0.0% / 0.0%,0.0% / 0.0%,100.0% / 100.0%
+Premise-Break Detection (P / R),0.0% / 0.0%,0.0% / 0.0%,100.0% / 100.0%
+Cross-Decision Conflict (P / R),0.0% / 0.0%,100.0% / 100.0%,100.0% / 100.0%
+Impact / Affected Tasks (P / R),0.0% / 0.0%,0.0% / 0.0%,80.0% / 80.0%
+Repair Plan Correctness,0.0%,0.0%,71.4%
+Writes Without Approval (Target 0),0,0,0

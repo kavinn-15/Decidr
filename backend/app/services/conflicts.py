@@ -145,7 +145,14 @@ def detect_conflicts_for_decision(
             logger.warning(f"Failed LLM judge call for decisions #{decision.id} vs #{cand.id}: {e}")
             continue
 
-        # 4. Code validates quotes as exact substrings (Invariant 6)
+        verdict = judge_res.verdict
+        conf = judge_res.confidence
+
+        if verdict in ("consistent", "unrelated"):
+            logger.info(f"Decisions #{decision.id} and #{cand.id} are {verdict}. No alert created.")
+            continue
+
+        # 4. Code validates quotes as exact substrings (Invariant 6) for conflict/supersession
         cand_premise_texts = [p.text for p in cand.premises]
         cand_premise_quotes = [p.evidence_quote for p in cand.premises]
         old_valid = _is_exact_substring(
@@ -169,8 +176,6 @@ def detect_conflicts_for_decision(
             continue
 
         # 5. Behavior routing
-        verdict = judge_res.verdict
-        conf = judge_res.confidence
         explanation_with_meta = f"{judge_res.explanation} <!-- old_decision_id:{cand.id} -->"
 
         if verdict in ("contradicts", "supersedes") and conf >= 0.7:

@@ -15,6 +15,7 @@ from app.api.routes.decisions import router as decisions_router
 from app.api.routes.alerts import router as alerts_router
 from app.api.routes.proposals import router as proposals_router
 from app.api.routes.reminders_digest import router as reminders_digest_router
+from app.api.routes.evaluation import router as evaluation_router
 from app.services.premise_watch import run_expiry
 from app.services.reminders import run_reminders
 from app.services.digest import generate_and_schedule_weekly_digests
@@ -75,6 +76,7 @@ app.include_router(decisions_router)
 app.include_router(alerts_router)
 app.include_router(proposals_router)
 app.include_router(reminders_digest_router)
+app.include_router(evaluation_router)
 
 
 @app.get("/health")

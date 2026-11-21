@@ -8,7 +8,8 @@ import {
   AlertTriangle, 
   Layers, 
   CalendarCheck2, 
-  ShieldCheck 
+  ShieldCheck,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/ledger", label: "Decision Ledger", icon: Layers },
   { href: "/my-week", label: "My Week", icon: CalendarCheck2 },
   { href: "/audit", label: "Audit Log", icon: ShieldCheck },
+  { href: "/eval", label: "Evaluation", icon: BarChart3 },
 ];
 
 export function Sidebar() {

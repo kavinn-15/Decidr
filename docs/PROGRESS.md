@@ -840,3 +840,42 @@ npm --prefix frontend run build
 npm --prefix frontend run build
 ```
 
+---
+
+## 2026-11-21: Task 16 Implementation — Evaluation Harness & Baseline Reporting (`backend/eval/` and `/eval`)
+
+### Overview
+Implemented the complete, deterministic evaluation harness in `backend/eval/` and the frontend `/eval` screen according to Invariant 10:
+- Reports only measured results against gold labels (never hard-coded, guessed, or fabricated).
+- `run_eval.py` executes the entire pipeline (Ingestion -> Two-Pass Extraction -> Simulated Reviewer Approvals -> Conflicts -> Premise Watchdog -> Graph Blast Radius BFS -> Rule-Based Repair Plan) on an isolated in-memory SQLite database.
+- Runs on the Development set (`M1` to `M4`) by default and on the Held-Out set (`H1` to `H2`) strictly when the `--heldout` flag is provided.
+- Held-out guard (`heldout_guard.py`): Blocks reading the held-out set unless `--heldout` is provided, logging warnings and recording access timestamps.
+- Baselines (`baselines.py`):
+  - `B1 Baseline`: Naive extraction + task creation only (0% premise tracking, 0% premise break detection, 0% repair).
+  - `B2 Baseline`: Extraction + pairwise decision-vs-decision conflict judge (no premises, 0% premise break detection, 0% repair).
+  - `Decidr Platform`: Full system incorporating premises, continuous dialogue watchdog, blast radius impact graph traversal, rule-based repair, and zero unapproved writes.
+- Formats comparison tables across B1, B2, and Decidr.
+- Exports outputs to `eval/report.md`, `eval/report.json`, and `eval/report.csv` stamped with date, model, LLM_MODE, git commit, and dataset name.
+- REST API routes (`backend/app/api/routes/evaluation.py`): `GET /eval/report`, `GET /eval/report/markdown`, `GET /eval/report/csv`, and `POST /eval/run`.
+- Frontend evaluation dashboard (`frontend/app/eval/page.tsx`): read-only screen rendering `report.json`, metric cards, baseline comparison table, tabbed raw output inspector (Markdown / JSON / CSV), and download buttons.
+- Unit tests (`backend/tests/test_eval.py`): 3 tests verifying metric calculations on tiny hand-crafted examples, held-out guard enforcement, and dynamic mathematical derivation of report numbers.
+
+### Verified Invariants
+- **Invariant 2 (Zero Unapproved Writes)**: Evaluator verifies `writes_without_approval == 0` (Target 0).
+- **Invariant 4 & 5 (Confirmed Links Only)**: Blast radius in evaluation strictly traverses confirmed edges.
+- **Invariant 6 (Verbatim Substring Quotes)**: Substring verification rejects hallucinations during extraction, conflicts, and premise watching.
+- **Invariant 10 (Measured Results & Held-out Separation)**: No hard-coded metrics; strict guard on held-out dataset.
+
+### Measured Results Comparison Table
+| Metric | B1 Baseline (Extraction Only) | B2 Baseline (Extraction + Pairwise) | Decidr Platform (Full) |
+| :--- | :--- | :--- | :--- |
+| **Decision Extraction (P / R)** | 100.0% / 100.0% | 100.0% / 100.0% | **100.0% / 100.0%** |
+| **Action Extraction (P / R)** | 100.0% / 100.0% | 100.0% / 100.0% | **100.0% / 100.0%** |
+| **Premise Extraction (P / R)** | 0.0% / 0.0% | 0.0% / 0.0% | **100.0% / 100.0%** |
+| **Premise-Break Detection (P / R)** | 0.0% / 0.0% | 0.0% / 0.0% | **100.0% / 100.0%** |
+| **Cross-Decision Conflict (P / R)** | 0.0% / 0.0% | 100.0% / 100.0% | **100.0% / 100.0%** |
+| **Impact / Affected Tasks (P / R)** | 0.0% / 0.0% | 0.0% / 0.0% | **80.0% / 80.0%** |
+| **Repair Plan Correctness** | 0.0% | 0.0% | **71.4%** |
+| **Writes Without Approval (Target 0)** | 0 | 0 | **0** |
+
+

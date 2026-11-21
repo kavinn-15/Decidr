@@ -876,4 +876,86 @@ export async function triggerRunDigest(asOf?: string): Promise<any> {
   return apiRequest(`/admin/run-digest${q}`, { method: "POST" });
 }
 
+// --- Evaluation Interfaces & Endpoints (Task 16 - Invariant 10) ---
+
+export interface EvalMetadata {
+  date: string;
+  model: string;
+  llm_mode: string;
+  git_commit: string;
+  dataset: string;
+  dataset_is_heldout: boolean;
+}
+
+export interface PrecisionRecallMetrics {
+  tp: number;
+  fp: number;
+  fn: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  total_extracted?: number;
+  total_gold?: number;
+  detected?: number;
+  gold?: number;
+  detected_affected?: number;
+  gold_affected?: number;
+}
+
+export interface RepairCorrectnessMetrics {
+  correctness: number;
+  matched: number;
+  total_gold: number;
+  total_generated: number;
+}
+
+export interface EvalSystemMetrics {
+  name: string;
+  description: string;
+  decisions_pr: PrecisionRecallMetrics;
+  actions_pr: PrecisionRecallMetrics;
+  premises_pr: PrecisionRecallMetrics;
+  premise_breaks_pr: PrecisionRecallMetrics;
+  conflicts_pr: PrecisionRecallMetrics;
+  impact_pr: PrecisionRecallMetrics;
+  repair_correctness: RepairCorrectnessMetrics;
+  writes_without_approval: number;
+}
+
+export interface ComparisonTableRow {
+  metric: string;
+  b1: string;
+  b2: string;
+  decidr: string;
+}
+
+export interface EvalReport {
+  metadata: EvalMetadata;
+  decidr: EvalSystemMetrics;
+  b1_baseline: EvalSystemMetrics;
+  b2_baseline: EvalSystemMetrics;
+  comparison_table: ComparisonTableRow[];
+}
+
+export async function fetchEvalReport(heldout: boolean = false): Promise<EvalReport> {
+  return apiRequest<EvalReport>(`/eval/report?heldout=${heldout}`);
+}
+
+export async function fetchEvalMarkdown(): Promise<string> {
+  const res = await fetch(`${API_BASE}/eval/report/markdown`);
+  if (!res.ok) throw new Error("Failed to fetch evaluation markdown report");
+  return res.text();
+}
+
+export async function fetchEvalCsv(): Promise<string> {
+  const res = await fetch(`${API_BASE}/eval/report/csv`);
+  if (!res.ok) throw new Error("Failed to fetch evaluation CSV report");
+  return res.text();
+}
+
+export async function triggerRunEval(heldout: boolean = false): Promise<EvalReport> {
+  return apiRequest<EvalReport>(`/eval/run?heldout=${heldout}`, { method: "POST" });
+}
+
+
 
