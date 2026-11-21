@@ -10,10 +10,12 @@ Base = declarative_base()
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Enable SQLite foreign key constraints."""
+    """Enable SQLite foreign key constraints, WAL journal mode, and busy timeout."""
     if isinstance(dbapi_connection, sqlite3.Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON;")
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=5000;")
         cursor.close()
 
 

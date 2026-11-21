@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "date": "2026-11-21T12:57:57.216579+00:00",
+    "date": "2026-11-21T13:35:11.511359+00:00",
     "model": "gemini-1.5-pro",
     "llm_mode": "live",
-    "git_commit": "9f6e21ecb818a4f9e1b9782085482a3c37838aea",
+    "git_commit": "6d2b91d3568a0cd2b7e40dad04757a72d65b3cd8",
     "dataset": "development (M1-M4)",
     "dataset_is_heldout": false
   },

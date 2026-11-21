@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -73,12 +74,20 @@ async def create_meeting(
     except UnicodeDecodeError:
         content = file_bytes.decode("latin-1")
 
-    filename = file.filename or "transcript.vtt"
+    raw_filename = file.filename or "transcript.vtt"
+    sanitized_filename = Path(raw_filename).name
+    ext = Path(sanitized_filename).suffix.lower()
+    allowed_exts = {".vtt", ".srt", ".txt", ".json"}
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type '{ext}'. Allowed extensions: .vtt, .srt, .txt, .json",
+        )
 
     meeting = ingest_meeting(
         db=db,
         content=content,
-        filename=filename,
+        filename=sanitized_filename,
         title=title,
         meeting_date=meeting_date,
         project=project,

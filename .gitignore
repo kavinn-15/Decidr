@@ -37,6 +37,8 @@ wheels/
 
 # Database & Cache
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 decidr.db

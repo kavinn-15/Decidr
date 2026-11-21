@@ -254,3 +254,43 @@ def test_responses_and_config_never_leak_secrets():
     assert health_resp.status_code == 200
     assert "api_key" not in health_resp.text.lower()
     assert "password" not in health_resp.text.lower()
+
+
+def test_path_traversal_filename_is_sanitized():
+    """
+    Security Test: Attempting a directory traversal filename (e.g., ../../../evil.vtt)
+    is sanitized to base filename (evil.vtt).
+    """
+    traversal_vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nAsha: Normal team check-in."
+    response = client.post(
+        "/meetings",
+        data={
+            "title": "Traversal Test Meeting",
+            "date": "2026-11-21",
+            "project": "Security Audit",
+        },
+        files={"file": ("../../../../etc/passwd.vtt", io.BytesIO(traversal_vtt.encode("utf-8")), "text/vtt")},
+    )
+    assert response.status_code == 201
+    created_meeting = response.json()
+    assert "/" not in created_meeting["transcript_ref"]
+    assert "\\" not in created_meeting["transcript_ref"]
+    assert created_meeting["transcript_ref"] == "passwd.vtt"
+
+
+def test_unsupported_file_extension_is_rejected():
+    """
+    Security Test: Uploading dangerous or non-whitelisted file extensions (.exe, .py, .sh)
+    is blocked with HTTP 400 Bad Request.
+    """
+    response = client.post(
+        "/meetings",
+        data={
+            "title": "Malicious Upload Test",
+            "date": "2026-11-21",
+            "project": "Security Audit",
+        },
+        files={"file": ("exploit.exe", io.BytesIO(b"MZ\x90\x00\x03\x00"), "application/octet-stream")},
+    )
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
