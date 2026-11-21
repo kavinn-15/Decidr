@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     JSON,
+    Text,
     Enum as SAEnum,
     event,
 )
@@ -334,6 +335,28 @@ class Outbox(Base):
     body = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     sent = Column(Boolean, nullable=False, default=False)
+
+
+class TrackerTicket(Base):
+    __tablename__ = "tracker_tickets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_ref = Column(String(100), nullable=False, unique=True, index=True)
+    title = Column(String(500), nullable=False)
+    body = Column(Text, nullable=True)
+    assignee = Column(String(255), nullable=True)
+    due_date = Column(String(50), nullable=True)
+    labels = Column(JSON, nullable=False, default=list)
+    status = Column(String(50), nullable=False, default="open")
+    idempotency_key = Column(String(255), nullable=True, unique=True, index=True)
+    comments = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class AuditLog(Base):

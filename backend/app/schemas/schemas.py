@@ -333,3 +333,35 @@ class AuditLogCreate(AuditLogBase):
 class AuditLogRead(AuditLogBase):
     id: int
     created_at: datetime
+
+
+# --- Tracker Tickets ---
+class TrackerTicketBase(BaseSchema):
+    ticket_ref: str
+    title: str
+    body: Optional[str] = None
+    assignee: Optional[str] = None
+    due_date: Optional[str] = None
+    labels: list[str] = []
+    status: str = "open"
+    idempotency_key: Optional[str] = None
+    comments: list[dict[str, Any]] = []
+
+
+class TrackerTicketCreate(BaseSchema):
+    ticket_ref: str
+    title: str
+    body: Optional[str] = None
+    assignee: Optional[str] = None
+    due_date: Optional[str] = None
+    labels: list[str] = []
+    status: str = "open"
+    idempotency_key: Optional[str] = None
+    comments: list[dict[str, Any]] = []
+
+
+class TrackerTicketRead(TrackerTicketBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+

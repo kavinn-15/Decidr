@@ -57,12 +57,19 @@ decidr/
 │   │   │   ├── __init__.py
 │   │   │   ├── audit.py
 │   │   │   ├── ingestion.py
-│   │   │   └── extraction.py
+│   │   │   ├── extraction.py
+│   │   │   └── executor.py
+│   │   ├── trackers/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── mock.py
+│   │   │   └── github.py
 │   │   └── api/
 │   │       ├── __init__.py
 │   │       └── routes/
 │   │           ├── __init__.py
-│   │           └── meetings.py
+│   │           ├── meetings.py
+│   │           └── trackers.py
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   ├── conftest.py
@@ -71,7 +78,8 @@ decidr/
 │   │   ├── test_seed.py
 │   │   ├── test_llm.py
 │   │   ├── test_ingestion.py
-│   │   └── test_extraction.py
+│   │   ├── test_extraction.py
+│   │   └── test_executor.py
 │   └── requirements.txt
 └── frontend/
     ├── app/
@@ -183,4 +191,44 @@ OVERALL SUMMARY:
 - Fabricated quotes (quotes failing exact substring verification) are discarded prior to database persistence.
 
 ### Open Issues / Deferred
-- Premise break and cross-meeting conflict detection algorithms to be implemented in Task 6.
+- None from Task 5.
+
+---
+
+## Task 6: External Trackers & Proposal Execution Engine
+### What Was Built
+- **Tracker Abstraction (`backend/app/trackers/`)**:
+  - `BaseTracker`: Abstract interface defining `create_issue`, `add_comment`, `reopen`, `cancel`, and `find_by_key(idempotency_key)`.
+  - `MockTracker`: Persists external tickets in the `tracker_tickets` database table. Includes `GET /mock-tracker` responsive HTML page showing all tickets, statuses, comments, and idempotency keys, as well as `GET /api/mock-tracker/tickets` JSON API.
+  - `GitHubTracker`: Integrates with GitHub REST API via `httpx`. Automatically embeds `<!-- decidr:KEY -->` in the issue body, applies label `decidr`, and implements key-based deduplication in `find_by_key`.
+  - Factory `get_tracker()`: Selects `MockTracker` or `GitHubTracker` according to the `TRACKER` environment setting (`mock` | `github`).
+- **Proposal Execution Service (`backend/app/services/executor.py`)**:
+  - `execute_proposal(proposal_id, actor, dry_run=False)`:
+    - **Invariant 2 (Approved Writes Only)**: Strictly raises `ProposalNotApprovedError` if proposal state is `draft` or `rejected`. Zero external tracker calls are made.
+    - **Invariant 3 (Idempotent Execution)**: Checks each action's `idempotency_key`. Actions already executed are skipped without duplicating external calls.
+    - **Invariant 7 (Append-Only Audit Log)**: Every action execution writes an `audit_log` row recording actor, timestamp, before/after states, and result payload.
+    - **Fault Isolation & Retries**: A failing action is marked `failed` without losing or rolling back successful actions; subsequent execution retries only failed actions without duplicating already executed actions.
+    - **Dry Run Support**: `dry_run=True` calculates and returns exact outbound payloads without executing external calls or altering database state.
+- **Safety Proof Verification (`backend/tests/test_executor.py`)**:
+  - Draft or rejected proposal causes 0 tracker calls.
+  - Approved proposal executed twice creates exactly 1 ticket.
+  - Failed action is retried without duplicating successful actions.
+  - Dry run makes 0 calls and returns exact payloads.
+  - Full suite passes: **29/29 tests passing**.
+
+### How to Run
+```bash
+# Run full test suite including safety proofs
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run executor safety tests specifically
+.venv\Scripts\pytest.exe backend\tests\test_executor.py -v
+```
+
+### Assumptions Made
+- In `MockTracker`, ticket refs follow pattern `MOCK-<id>` with statuses `open`, `reopened`, `cancelled`.
+- For `GitHubTracker`, issue numbers are used as `ref`, and `state_reason="not_planned"` is set on cancellation.
+- In `executor.py`, proposals transition to `executed` only after all eligible actions have reached `executed` state.
+
+### Open Issues / Deferred
+- Premise break detection algorithms and Review Queue UI to be built in subsequent tasks.

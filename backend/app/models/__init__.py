@@ -32,6 +32,7 @@ from app.models.models import (
     ChangeAction,
     Reminder,
     Outbox,
+    TrackerTicket,
     AuditLog,
 )
 
@@ -67,5 +68,6 @@ __all__ = [
     "ChangeAction",
     "Reminder",
     "Outbox",
+    "TrackerTicket",
     "AuditLog",
 ]
