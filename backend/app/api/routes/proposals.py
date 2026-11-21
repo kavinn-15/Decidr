@@ -98,6 +98,7 @@ def get_proposal(
 def preview_proposal_get(
     proposal_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Dry-run preview endpoint returning the exact payloads that will be sent.
@@ -132,6 +133,7 @@ def preview_proposal_post(
     proposal_id: int,
     payload: PreviewProposalRequest = PreviewProposalRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Dry-run preview endpoint taking optional selected action_ids and optional edited_payloads.

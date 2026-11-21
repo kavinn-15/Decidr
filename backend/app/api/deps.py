@@ -81,6 +81,22 @@ def get_current_verified_user(
     return user
 
 
+def require_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Enforces administrator authorization.
+    Raises HTTP 403 Forbidden if the authenticated user does not have the 'admin' role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to perform this action.",
+        )
+    return current_user
+
+
+
 def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     authorization: Optional[str] = Header(None),

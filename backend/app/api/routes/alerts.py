@@ -3,9 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.models import Alert
+from app.models.models import Alert, User
 from app.models.enums import AlertState
 from app.services.blast_radius import calculate_blast_radius
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -15,6 +16,7 @@ def list_alerts(
     state: Optional[str] = Query("open", description="Filter by state (open, confirmed, dismissed, all)"),
     project: Optional[str] = Query(None, description="Filter by project"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List alerts for blast-radius selection and triage.
@@ -50,6 +52,7 @@ def list_alerts(
 def get_alert_repair_plan(
     alert_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Returns the repair plan proposal associated with this alert.
@@ -60,13 +63,14 @@ def get_alert_repair_plan(
     if not alert.proposal_id:
         raise HTTPException(status_code=404, detail=f"No repair proposal found for Alert #{alert_id}")
     from app.api.routes.proposals import get_proposal
-    return get_proposal(alert.proposal_id, db=db)
+    return get_proposal(alert.proposal_id, db=db, current_user=current_user)
 
 
 @router.post("/{alert_id}/repair-plan")
 def create_alert_repair_plan(
     alert_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Generates a deterministic rule-based repair plan for this alert.
@@ -79,7 +83,7 @@ def create_alert_repair_plan(
     try:
         proposal = generate_repair_plan(db, alert_id=alert.id)
         db.commit()
-        return get_proposal(proposal.id, db=db)
+        return get_proposal(proposal.id, db=db, current_user=current_user)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -88,6 +92,7 @@ def create_alert_repair_plan(
 def get_alert_blast_radius(
     alert_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Computes deterministic blast radius and impact tracing for a given alert.

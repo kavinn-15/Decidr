@@ -22,11 +22,14 @@ def list_decisions(
     region: Optional[str] = Query(None, description="Filter by region"),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List decisions with optional project, status, region, and BM25 text search.
     Scope filter is applied first, followed by BM25 ranking over decision and premise text.
     """
+    if project:
+        verify_project_access(project, current_user, db)
     scope = {"region": region} if region else None
     dec_status = None
     if status:

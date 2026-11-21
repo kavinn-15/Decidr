@@ -1,10 +1,12 @@
 import json
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Response, Depends
 from fastapi.responses import PlainTextResponse
 
 from eval.run_eval import run_evaluation, backend_path
+from app.models.models import User
+from app.api.deps import require_admin_user
 
 router = APIRouter(prefix="/eval", tags=["evaluation"])
 
@@ -93,6 +95,7 @@ def get_eval_csv():
 @router.post("/run")
 def trigger_eval_run(
     heldout: bool = Query(False, description="Whether to evaluate on held-out dataset"),
+    admin_user: User = Depends(require_admin_user),
 ):
     """
     Triggers execution of the evaluation pipeline and returns fresh report.

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, SessionLocal
@@ -86,10 +86,19 @@ async def create_meeting(
             detail=f"Unsupported file type '{ext}'. Allowed extensions: .vtt, .srt, .txt, .json",
         )
 
+    from app.services.storage import upload_transcript_file
+
+    transcript_ref = upload_transcript_file(
+        content_bytes=file_bytes,
+        original_filename=sanitized_filename,
+        project=project,
+        content_type=file.content_type or "text/plain",
+    )
+
     meeting = ingest_meeting(
         db=db,
         content=content,
-        filename=sanitized_filename,
+        filename=transcript_ref,
         title=title,
         meeting_date=meeting_date,
         project=project,
@@ -110,9 +119,24 @@ async def create_meeting(
 
 
 @router.get("", response_model=List[MeetingSummaryRead])
-def list_meetings(db: Session = Depends(get_db)):
+def list_meetings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """List all meetings with utterance counts, unmapped speaker flags, and pending review counts."""
-    meetings = db.query(Meeting).order_by(Meeting.date.desc()).all()
+    query = db.query(Meeting)
+    if current_user.role != "admin":
+        user_projects = [
+            pm.project for pm in db.query(ProjectMember).filter(ProjectMember.user_id == current_user.id).all()
+        ]
+        query = query.filter(
+            or_(
+                Meeting.owner_id == current_user.id,
+                Meeting.project.in_(user_projects),
+                Meeting.owner_id.is_(None),  # allow legacy/demo projects
+            )
+        )
+    meetings = query.order_by(Meeting.date.desc()).all()
     results = []
     for m in meetings:
         utt_count = db.query(Utterance).filter_by(meeting_id=m.id).count()

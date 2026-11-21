@@ -268,6 +268,7 @@ def approve_decision(
     item_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Approving a decision creates the decisions row plus a decision_versions row.
@@ -277,7 +278,10 @@ def approve_decision(
     if not item or item.type != ItemType.decision:
         raise HTTPException(status_code=404, detail="Decision item not found")
 
-    actor = payload.actor
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     prev_state = item.review_state.value
     item.review_state = ReviewState.approved
 
@@ -348,16 +352,21 @@ def reject_decision(
     item_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     item = db.get(Item, item_id)
     if not item or item.type != ItemType.decision:
         raise HTTPException(status_code=404, detail="Decision item not found")
 
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     prev_state = item.review_state.value
     item.review_state = ReviewState.rejected
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="reject_decision",
         entity_type="item",
         entity_id=item.id,
@@ -374,10 +383,16 @@ def edit_decision(
     item_id: int,
     payload: EditDecisionRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     item = db.get(Item, item_id)
     if not item or item.type != ItemType.decision:
         raise HTTPException(status_code=404, detail="Decision item not found")
+
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
 
     before = {"text": item.text}
     if payload.text:
@@ -437,6 +452,7 @@ def approve_premise(
     premise_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Approving a premise sets state=confirmed and status=holding.
@@ -445,6 +461,10 @@ def approve_premise(
     if not premise:
         raise HTTPException(status_code=404, detail="Premise not found")
 
+    if premise.decision and premise.decision.scope_project:
+        verify_project_access(premise.decision.scope_project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     before = {
         "state": premise.state.value,
         "status": premise.status.value,
@@ -452,10 +472,10 @@ def approve_premise(
     }
     premise.state = PremiseState.confirmed
     premise.status = PremiseStatus.holding
-    premise.confirmed_by = payload.actor
+    premise.confirmed_by = actor
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="approve_premise",
         entity_type="premise",
         entity_id=premise.id,
@@ -476,6 +496,7 @@ def reject_premise(
     premise_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Rejecting a premise means it is never used.
@@ -484,11 +505,15 @@ def reject_premise(
     if not premise:
         raise HTTPException(status_code=404, detail="Premise not found")
 
+    if premise.decision and premise.decision.scope_project:
+        verify_project_access(premise.decision.scope_project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     before = {"state": premise.state.value}
     premise.state = PremiseState.rejected
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="reject_premise",
         entity_type="premise",
         entity_id=premise.id,
@@ -505,10 +530,16 @@ def edit_premise(
     premise_id: int,
     payload: EditPremiseRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     premise = db.get(Premise, premise_id)
     if not premise:
         raise HTTPException(status_code=404, detail="Premise not found")
+
+    if premise.decision and premise.decision.scope_project:
+        verify_project_access(premise.decision.scope_project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
 
     before = {
         "text": premise.text,
@@ -542,6 +573,7 @@ def approve_action(
     item_id: int,
     payload: ApproveActionRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Approving an action:
@@ -556,6 +588,11 @@ def approve_action(
     item = db.get(Item, item_id)
     if not item or item.type != ItemType.action:
         raise HTTPException(status_code=404, detail="Action item not found")
+
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
 
     task = item.task
     if not task:
@@ -713,6 +750,7 @@ def reject_action(
     item_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Rejecting an action calls nothing on the external tracker.
@@ -721,6 +759,10 @@ def reject_action(
     if not item or item.type != ItemType.action:
         raise HTTPException(status_code=404, detail="Action item not found")
 
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     prev_state = item.review_state.value
     item.review_state = ReviewState.rejected
 
@@ -728,7 +770,7 @@ def reject_action(
         item.task.status = TaskStatus.cancelled
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="reject_action",
         entity_type="item",
         entity_id=item.id,
@@ -745,10 +787,16 @@ def edit_action(
     item_id: int,
     payload: EditActionRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     item = db.get(Item, item_id)
     if not item or item.type != ItemType.action:
         raise HTTPException(status_code=404, detail="Action item not found")
+
+    if item.meeting and item.meeting.project:
+        verify_project_access(item.meeting.project, current_user, db)
+
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
 
     task = item.task
     before = {
@@ -811,16 +859,18 @@ def confirm_link(
     link_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     link = db.get(Link, link_id)
     if not link:
         raise HTTPException(status_code=404, detail="Link not found")
 
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     before = {"confirmed": link.confirmed}
     link.confirmed = True
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="confirm_link",
         entity_type="link",
         entity_id=link.id,
@@ -837,16 +887,18 @@ def reject_link(
     link_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     link = db.get(Link, link_id)
     if not link:
         raise HTTPException(status_code=404, detail="Link not found")
 
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     before = {"confirmed": link.confirmed}
     link.confirmed = False
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="reject_link",
         entity_type="link",
         entity_id=link.id,
@@ -865,16 +917,19 @@ def confirm_alert(
     alert_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     alert = db.get(Alert, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
+
     # If it is a supersedes alert, run the full supersedes workflow
     if alert.verdict and "supersedes" in alert.verdict.lower():
         from app.services.conflicts import approve_supersedes_alert
         try:
-            confirmed_alert = approve_supersedes_alert(db, alert_id, actor=payload.actor)
+            confirmed_alert = approve_supersedes_alert(db, alert_id, actor=actor)
             db.commit()
             return {"status": "confirmed", "alert_id": confirmed_alert.id, "verdict": confirmed_alert.verdict}
         except Exception as e:
@@ -890,7 +945,7 @@ def confirm_alert(
             prev_status = premise.status.value
             premise.status = PremiseStatus.broken
             log(
-                actor=payload.actor,
+                actor=actor,
                 action="break_premise",
                 entity_type="premise",
                 entity_id=premise.id,
@@ -901,13 +956,13 @@ def confirm_alert(
             # Invariant: Blast radius is computed and a repair plan (change_proposal in state draft) is generated
             from app.services.repair import generate_repair_plan
             try:
-                proposal = generate_repair_plan(db, alert_id=alert.id, actor=payload.actor)
+                proposal = generate_repair_plan(db, alert_id=alert.id, actor=actor)
                 alert.proposal_id = proposal.id
             except Exception as e:
                 logger.warning(f"Error generating repair plan on premise break confirmation: {e}")
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="confirm_alert",
         entity_type="alert",
         entity_id=alert.id,
@@ -924,11 +979,13 @@ def dismiss_alert(
     alert_id: int,
     payload: GenericActionRequest = GenericActionRequest(),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     alert = db.get(Alert, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
+    actor = payload.actor if (payload.actor and payload.actor != "reviewer") else (current_user.email or current_user.full_name)
     before = {"state": alert.state.value}
     alert.state = AlertState.dismissed
 
@@ -939,7 +996,7 @@ def dismiss_alert(
             prev_status = premise.status.value
             premise.status = PremiseStatus.holding
             log(
-                actor=payload.actor,
+                actor=actor,
                 action="restore_premise_holding",
                 entity_type="premise",
                 entity_id=premise.id,
@@ -949,7 +1006,7 @@ def dismiss_alert(
             )
 
     log(
-        actor=payload.actor,
+        actor=actor,
         action="dismiss_alert",
         entity_type="alert",
         entity_id=alert.id,

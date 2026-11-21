@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.models import AuditLog
+from app.models.models import AuditLog, User
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -43,6 +44,7 @@ def get_audit_logs(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Returns newest-first audit log entries with filtering for actor, action, and entity type.
@@ -79,7 +81,10 @@ def get_audit_logs(
 
 
 @router.get("/filters", response_model=AuditFiltersResponse)
-def get_audit_filter_options(db: Session = Depends(get_db)):
+def get_audit_filter_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Returns distinct values for actors, actions, and entity types in the audit log.
     """
@@ -102,6 +107,7 @@ def export_audit_logs_csv(
     action: Optional[str] = Query(None),
     entity_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Exports filtered audit logs as a downloadable CSV file.
@@ -119,25 +125,23 @@ def export_audit_logs_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Timestamp (UTC)", "Actor", "Action", "Entity Type", "Entity ID", "Before", "After"])
+    writer.writerow(["ID", "Timestamp", "Actor", "Action", "Entity Type", "Entity ID", "Before", "After"])
 
-    for item in items:
+    for a in items:
         writer.writerow([
-            item.id,
-            item.created_at.isoformat() if item.created_at else "",
-            item.actor,
-            item.action,
-            item.entity_type,
-            item.entity_id,
-            json.dumps(item.before) if item.before else "",
-            json.dumps(item.after) if item.after else "",
+            a.id,
+            a.created_at.isoformat() if a.created_at else "",
+            a.actor,
+            a.action,
+            a.entity_type,
+            a.entity_id,
+            json.dumps(a.before) if a.before else "",
+            json.dumps(a.after) if a.after else "",
         ])
 
-    csv_content = output.getvalue()
-    filename = f"decidr_audit_log_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-
+    csv_data = output.getvalue()
     return Response(
-        content=csv_content,
+        content=csv_data,
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": "attachment; filename=decidr_audit_log.csv"},
     )

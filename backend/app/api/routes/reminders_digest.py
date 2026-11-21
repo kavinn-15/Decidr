@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.models import Person, Task, Outbox, Reminder
+from app.models.models import Person, Task, Outbox, Reminder, User
 from app.models.enums import TaskStatus, ReminderState
 from app.services.reminders import run_reminders, create_task_reminders
 from app.services.digest import build_digest, generate_and_schedule_weekly_digests
+from app.api.deps import require_admin_user, get_current_user
 
 router = APIRouter(tags=["reminders_digest"])
 
@@ -57,9 +58,11 @@ def get_person_digest(
 def trigger_run_reminders(
     now: Optional[str] = Query(None, description="Simulated current timestamp ISO format"),
     db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin_user),
 ):
     """
     Trigger scheduled reminder dispatch, with optional simulated 'now' timestamp.
+    Requires administrative privileges.
     """
     now_dt: Optional[datetime] = None
     if now:
@@ -80,9 +83,11 @@ def trigger_run_reminders(
 def trigger_run_digest(
     as_of: Optional[str] = Query(None, description="Simulated reference date YYYY-MM-DD"),
     db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin_user),
 ):
     """
     Trigger weekly digest dispatch and write to outbox for all team members.
+    Requires administrative privileges.
     """
     as_of_d: Optional[date] = None
     if as_of:
