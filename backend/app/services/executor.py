@@ -160,7 +160,12 @@ def _execute_single_action(
         if task:
             task.tracker_ref = tracker_res.get("ref")
             task.tracker_url = tracker_res.get("url")
-            task.provisional = False
+            if "provisional" in payload:
+                task.provisional = payload["provisional"]
+            elif "provisional" in labels:
+                task.provisional = True
+            else:
+                task.provisional = False
         return tracker_res
 
     elif atype == ActionType.comment_task:

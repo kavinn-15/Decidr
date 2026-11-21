@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.db.session import init_db
 from app.api.routes.meetings import router as meetings_router
 from app.api.routes.trackers import router as trackers_router
+from app.api.routes.review import router as review_router
 
 
 @asynccontextmanager
@@ -32,6 +33,7 @@ app.add_middleware(
 # Register routes
 app.include_router(meetings_router)
 app.include_router(trackers_router)
+app.include_router(review_router)
 
 
 @app.get("/health")

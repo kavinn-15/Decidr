@@ -69,7 +69,8 @@ decidr/
 │   │       └── routes/
 │   │           ├── __init__.py
 │   │           ├── meetings.py
-│   │           └── trackers.py
+│   │           ├── trackers.py
+│   │           └── review.py
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   ├── conftest.py
@@ -79,7 +80,8 @@ decidr/
 │   │   ├── test_llm.py
 │   │   ├── test_ingestion.py
 │   │   ├── test_extraction.py
-│   │   └── test_executor.py
+│   │   ├── test_executor.py
+│   │   └── test_review.py
 │   └── requirements.txt
 └── frontend/
     ├── app/
@@ -231,4 +233,72 @@ OVERALL SUMMARY:
 - In `executor.py`, proposals transition to `executed` only after all eligible actions have reached `executed` state.
 
 ### Open Issues / Deferred
-- Premise break detection algorithms and Review Queue UI to be built in subsequent tasks.
+- None from Task 6.
+
+---
+
+## Task 7: Review Queue (Backend API & Frontend Hero Screen)
+### What Was Built
+- **Review Queue Backend (`backend/app/api/routes/review.py`)**:
+  - `GET /meetings/{id}/review`: Returns prioritized review cards in strict order:
+    1. Premise break and conflict alerts first.
+    2. Decisions, each with nested underlying premise cards.
+    3. Action items (with owner, deadline, and provisional status).
+    4. Low-confidence link confirmation cards.
+    5. People roster for assignment dropdowns.
+  - `POST /review/decisions/{id}/approve`: Approves decision, ensures `decisions` row + `decision_versions` row (version 1), writes `audit_log`.
+  - `POST /review/decisions/{id}/reject`: Marks decision rejected, writes `audit_log`.
+  - `POST /review/decisions/{id}/edit`: Edits text or scope, increments version, creates `decision_versions` row, writes `audit_log`.
+  - `POST /review/premises/{id}/approve`: Sets premise `state=confirmed` and `status=holding`, writes `audit_log`.
+  - `POST /review/premises/{id}/reject`: Sets premise `state=rejected` (never used in detection), writes `audit_log`.
+  - `POST /review/premises/{id}/edit`: Edits premise text or expiration date, writes `audit_log`.
+  - `POST /review/actions/{id}/approve`:
+    - Enforces missing field validation: missing owner or deadline requires filling fields or explicitly choosing "Approve Unassigned".
+    - Enforces provisional rule: if any premise of the linked decision is unconfirmed, sets `provisional=true`, attaches visible label `"provisional"` and notice `"Rests on an unverified premise"`.
+    - Creates task + approved `create_task` change action and triggers `execute_proposal` to generate a real tracker ticket.
+    - Writes `audit_log`.
+  - `POST /review/actions/{id}/reject`: Marks action rejected; calls 0 external tracker calls; writes `audit_log`.
+  - `POST /review/actions/{id}/edit`: Updates text, owner, deadline, estimate hours; writes `audit_log`.
+  - `POST /review/links/{id}/confirm` & `/reject`: Manages candidate link confirmation; writes `audit_log`.
+  - `POST /review/alerts/{id}/confirm` & `/dismiss`: Confirms or dismisses alerts; writes `audit_log`.
+
+- **Review Queue Frontend (`frontend/app/review/page.tsx`)**:
+  - **Two-Pane Layout**:
+    - **Left Pane (Transcript)**: Displays full meeting utterances with speaker badges and timestamps. Evidence quotes are highlighted. Clicking a card in the right pane scrolls to and pulses its quote; clicking any highlight focuses its corresponding card in the right pane.
+    - **Right Pane (Verification Cards)**:
+      - **Alerts**: Red accent styling with side-by-side Then (Earlier Confirmed Premise) vs. Now (Contradictory Statement) quote comparison.
+      - **Decisions**: Confidence badge, scope tags, quote citation, with nested premise cards indented underneath.
+      - **Actions**: Badges for "Needs Owner", "Needs Deadline", "Provisional", and assigned tracker ticket refs.
+      - **Link Cards**: Low-confidence candidate links between tasks and decisions.
+  - **Keyboard Shortcuts**: `[A]` Approve, `[E]` Edit, `[R]` Reject on focused card, with `ArrowUp`/`ArrowDown` navigation.
+  - **Interactive Modals**: Missing field assignment modal (Assign Owner / Deadline or Approve Unassigned) and card editing modal.
+  - **Loading Skeletons, Empty State & Error Toasts**: Clean feedback states for loading, empty queues, and operational toasts.
+
+- **Unit & Integration Tests (`backend/tests/test_review.py`)**:
+  - Approving an action creates exactly one ticket.
+  - Provisional is set correctly when linked decision premises are unconfirmed.
+  - Rejecting an action calls nothing on the tracker.
+  - Missing owner/deadline requires filling fields or explicit unassigned confirmation.
+  - Approving a decision creates decision and decision_versions rows.
+  - Approving/rejecting premises updates state and holding status.
+  - Ordered review cards retrieval.
+  - Full suite passes: **36/36 tests passing**.
+
+### How to Run
+```bash
+# Run backend review tests
+.venv\Scripts\pytest.exe backend\tests\test_review.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend build verification
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `review/page.tsx`, keyboard shortcuts are disabled when typing within text fields, modals, or dropdowns to prevent accidental triggers.
+- An action linked to a decision with no premises is treated as provisional (`provisional=True`) until explicit premise confirmation.
+
+### Open Issues / Deferred
+- Premise break and cross-meeting conflict detection algorithms to be built in subsequent tasks.
