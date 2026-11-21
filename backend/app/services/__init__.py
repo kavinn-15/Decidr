@@ -6,6 +6,16 @@ from app.services.executor import (
     ProposalNotApprovedError,
     ExecutionError,
 )
+from app.services.links import (
+    create_link,
+    confirm_link,
+    reject_link,
+    neighbors,
+)
+from app.services.ledger import (
+    scope_overlap,
+    search as search_decisions,
+)
 
 __all__ = [
     "log",
@@ -15,4 +25,10 @@ __all__ = [
     "execute_proposal",
     "ProposalNotApprovedError",
     "ExecutionError",
+    "create_link",
+    "confirm_link",
+    "reject_link",
+    "neighbors",
+    "scope_overlap",
+    "search_decisions",
 ]

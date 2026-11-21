@@ -423,3 +423,110 @@ export function getAuditExportUrl(params?: {
   if (params?.entity_type) q.set("entity_type", params.entity_type);
   return `${API_BASE}/audit/export?${q.toString()}`;
 }
+
+export interface DecisionPremiseItem {
+  id: number;
+  text: string;
+  evidence_quote?: string;
+  utterance_id?: number | null;
+  scope_project?: string;
+  scope_region?: string | null;
+  valid_from?: string | null;
+  valid_until?: string | null;
+  state: "proposed" | "confirmed" | "rejected";
+  status: "holding" | "shaky" | "broken" | "expired";
+  confirmed_by?: string | null;
+}
+
+export interface DecisionSummary {
+  id: number;
+  item_id: number;
+  text: string;
+  scope_project: string;
+  scope_region?: string | null;
+  scope_release?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  status: "active" | "superseded" | "at_risk";
+  version: number;
+  supersedes_id?: number | null;
+  score: number;
+  premises_count: number;
+  premises: DecisionPremiseItem[];
+}
+
+export interface DecisionLinkedTask {
+  id: number;
+  item_id: number;
+  title: string;
+  description?: string | null;
+  owner_id?: number | null;
+  owner_name?: string | null;
+  due_date?: string | null;
+  estimate_hours?: number | null;
+  provisional: boolean;
+  status: "open" | "at_risk" | "done" | "cancelled";
+  tracker_ref?: string | null;
+  tracker_url?: string | null;
+}
+
+export interface DecisionVersionItem {
+  id: number;
+  version: number;
+  text: string;
+  changed_at?: string | null;
+  changed_by: string;
+}
+
+export interface DecisionTimelineItem {
+  id: number;
+  created_at?: string | null;
+  actor: string;
+  action: string;
+  entity_type: string;
+  entity_id: number;
+  before?: Record<string, any> | null;
+  after?: Record<string, any> | null;
+}
+
+export interface DecisionDetailResponse {
+  decision: {
+    id: number;
+    item_id: number;
+    text: string;
+    scope_project: string;
+    scope_region?: string | null;
+    scope_release?: string | null;
+    effective_from?: string | null;
+    effective_to?: string | null;
+    status: "active" | "superseded" | "at_risk";
+    version: number;
+    supersedes_id?: number | null;
+    embedding?: string | null;
+  };
+  premises: DecisionPremiseItem[];
+  linked_tasks: DecisionLinkedTask[];
+  version_history: DecisionVersionItem[];
+  status_timeline: DecisionTimelineItem[];
+}
+
+export async function fetchDecisions(params?: {
+  project?: string;
+  status?: string;
+  text?: string;
+  region?: string;
+  limit?: number;
+}): Promise<DecisionSummary[]> {
+  const q = new URLSearchParams();
+  if (params?.project) q.set("project", params.project);
+  if (params?.status) q.set("status", params.status);
+  if (params?.text) q.set("text", params.text);
+  if (params?.region) q.set("region", params.region);
+  if (params?.limit) q.set("limit", String(params.limit));
+  return apiRequest<DecisionSummary[]>(`/decisions?${q.toString()}`);
+}
+
+export async function fetchDecisionDetail(id: number): Promise<DecisionDetailResponse> {
+  return apiRequest<DecisionDetailResponse>(`/decisions/${id}`);
+}
+

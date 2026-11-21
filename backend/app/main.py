@@ -7,6 +7,7 @@ from app.api.routes.meetings import router as meetings_router
 from app.api.routes.trackers import router as trackers_router
 from app.api.routes.review import router as review_router
 from app.api.routes.audit import router as audit_router
+from app.api.routes.decisions import router as decisions_router
 
 
 @asynccontextmanager
@@ -36,6 +37,7 @@ app.include_router(meetings_router)
 app.include_router(trackers_router)
 app.include_router(review_router)
 app.include_router(audit_router)
+app.include_router(decisions_router)
 
 
 @app.get("/health")

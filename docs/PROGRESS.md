@@ -359,3 +359,83 @@ npm --prefix frontend run build
 ### Open Issues / Deferred
 - None from Task 8.
 
+---
+
+## Task 9: Decision Ledger & Knowledge Graph Links
+### What Was Built
+- **Scope Overlap Comparator (`backend/app/services/ledger.py`)**:
+  - `scope_overlap(a, b) -> "overlap" | "disjoint" | "unknown"`:
+    - **Rule 1 (Project Disjointness)**: If both records specify a project and they differ (case-insensitive), returns `"disjoint"`. If either lacks a project, returns `"unknown"`.
+    - **Rule 2 (Region Disjointness)**: If both records specify a non-null region and they differ (e.g., India vs Europe), returns `"disjoint"`.
+    - **Rule 3 (Release Disjointness)**: If both records specify a non-null release and they differ (e.g., v1.0 vs v2.0), returns `"disjoint"`.
+    - **Rule 4 (Temporal Disjointness)**: If both records define effective dates and their intervals do not intersect (`a.effective_to < b.effective_from` or `b.effective_to < a.effective_from`), returns `"disjoint"`.
+    - **Rule 5 (Identical Scope)**: If project matches, regions match, releases match, and dates intersect, returns `"overlap"`.
+    - **Rule 6 (Subsumption / One-Side-Null)**: Within the same project, a record with a null region or release represents an unconstrained global/project-wide scope that encompasses a narrower specific scope, returning `"overlap"`.
+    - **Rule 7 (Cross-Unspecified Ambiguity)**: If record A specifies region without release, while record B specifies release without region, returns `"unknown"`.
+  - Comprehensive docstrings documenting each rule in full detail.
+
+- **Ledger Search Engine (`backend/app/services/ledger.py`)**:
+  - `ledger.search(db, project, text, scope, status, limit)`:
+    - **Scope Filter First**: Filters decision candidates using `scope_overlap` (discarding `"disjoint"` records) alongside project and status filters.
+    - **BM25 Ranking**: Uses `rank_bm25.BM25Okapi` over joint corpus of decision text plus premise texts.
+    - Returns scored hits sorted descending by BM25 relevance score.
+
+- **Knowledge Graph Links Service (`backend/app/services/links.py`)**:
+  - `create_link(db, source_type, source_id, target_type, target_id, relation, confirmed=False, confidence=1.0, rationale=None, actor="system")`:
+    Creates or updates link and logs to append-only `audit_log`.
+  - `confirm_link(db, link_id, actor="reviewer")`:
+    Confirms a link, updates state to `confirmed=True`, and writes to `audit_log`.
+  - `reject_link(db, link_id, actor="reviewer")`:
+    Rejects a link, updates state to `confirmed=False`, and writes to `audit_log`.
+  - `neighbors(db, node, relations=None, confirmed_only=True)`:
+    - **Invariant 4 (Unconfirmed Isolation)**: Graph queries strictly ignore unconfirmed links by default (`confirmed_only=True`).
+    - Returns bidirectional neighboring nodes (`incoming` and `outgoing`), relation type, confidence, and metadata.
+
+- **REST API Endpoints (`backend/app/api/routes/decisions.py`)**:
+  - `GET /decisions`: Lists decisions with optional project, status, region scope, and BM25 text ranking.
+  - `GET /decisions/{id}`: Returns comprehensive decision detail:
+    1. Core decision metadata (status, version, scope, effective dates, supersedes_id).
+    2. Premise cards with lifecycle status (`holding`, `shaky`, `broken`, `expired`) and state (`proposed`, `confirmed`, `rejected`).
+    3. Linked tasks (both direct foreign key `task.decision_id` and confirmed graph links via `neighbors()`).
+    4. Complete version history from `decision_versions`.
+    5. Full status timeline from `audit_log`.
+
+- **Frontend Client Integration (`frontend/lib/api.ts`)**:
+  - Typed interfaces: `DecisionSummary`, `DecisionDetailResponse`, `DecisionPremiseItem`, `DecisionLinkedTask`, `DecisionVersionItem`, `DecisionTimelineItem`.
+  - API methods: `fetchDecisions(params)` and `fetchDecisionDetail(id)`.
+
+- **Unit & Integration Tests (`backend/tests/test_ledger_links.py`)**:
+  - `test_scope_overlap_india_vs_europe_is_disjoint`: India vs Europe is disjoint.
+  - `test_scope_overlap_same_scope_overlaps`: Identical scopes overlap.
+  - `test_scope_overlap_non_intersecting_dates_are_disjoint`: Non-intersecting dates are disjoint.
+  - `test_scope_overlap_one_side_null_and_unknown`: Global subsumption and cross-unspecified ambiguity.
+  - `test_unconfirmed_links_excluded_from_neighbors`: Unconfirmed links are excluded from `neighbors()`.
+  - `test_links_service_create_confirm_reject`: Link lifecycle and audit logging.
+  - `test_search_ranks_exact_topic_decision_first`: BM25 ranks exact-topic decision first.
+  - `test_search_scope_and_status_filtering`: Scope and status filtering prior to ranking.
+  - `test_api_get_decisions`: `GET /decisions` query parameters and BM25 search.
+  - `test_api_get_decision_detail`: `GET /decisions/{id}` full 5-part payload verification.
+  - `test_api_get_decision_not_found`: 404 response on missing decision.
+  - Full suite passes: **53/53 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run ledger and links tests
+.venv\Scripts\pytest.exe backend\tests\test_ledger_links.py -v
+
+# Run full backend test suite
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `ledger.search`, when text query is omitted, candidates are ordered by decision ID descending.
+- In `neighbors`, nodes can be represented as `(type, id)` tuples, dictionaries, colon-delimited strings (`"task:1"`), or SQLAlchemy model instances.
+
+### Open Issues / Deferred
+- None from Task 9.
+
+
