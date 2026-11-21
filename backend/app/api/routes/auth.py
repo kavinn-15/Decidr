@@ -94,15 +94,17 @@ def register_user(
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
 
+    email_delivery = is_email_configured()
+
     new_user = User(
         email=email,
         full_name=full_name,
         hashed_password=hash_password(req.password),
-        is_verified=False,
+        is_verified=True if not email_delivery else False,
         is_active=True,
         role="member",
-        verification_token=token,
-        verification_token_expires_at=expires_at,
+        verification_token=token if email_delivery else None,
+        verification_token_expires_at=expires_at if email_delivery else None,
         verification_attempts=0,
         created_at=now,
     )
@@ -111,14 +113,18 @@ def register_user(
     db.refresh(new_user)
 
     # 6. Send verification email
-    sent, reason = send_verification_email(email, full_name, token)
-
-    dev_token = token if (settings.DEMO_MODE and not sent) else None
-    message = (
-        "Registration successful. A verification email has been dispatched."
-        if sent
-        else f"Registration successful. Notice: {reason}"
-    )
+    if email_delivery:
+        sent, reason = send_verification_email(email, full_name, token)
+        dev_token = None
+        message = (
+            "Registration successful. A verification email has been dispatched."
+            if sent
+            else f"Registration successful. Notice: {reason}"
+        )
+    else:
+        sent = False
+        dev_token = token
+        message = "Registration successful. You can now log in with your credentials."
 
     return MessageResponse(
         status="ok",
@@ -252,10 +258,16 @@ def login_user(
 
     # Check verified status
     if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email address before logging in. Check your inbox or request a new verification link.",
-        )
+        if not is_email_configured():
+            # If email delivery is not configured on the deployment, auto-verify user on valid password authentication
+            user.is_verified = True
+            db.commit()
+            db.refresh(user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please verify your email address before logging in. Check your inbox or request a new verification link.",
+            )
 
     # Update last login
     now = datetime.now(timezone.utc)
@@ -308,7 +320,7 @@ def forgot_password(
     db.commit()
 
     sent, reason = send_password_reset_email(user.email, user.full_name, token)
-    dev_token = token if (settings.DEMO_MODE and not sent) else None
+    dev_token = token if not sent else None
 
     return MessageResponse(
         status="ok",

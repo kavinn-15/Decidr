@@ -14,8 +14,9 @@ def is_email_configured() -> bool:
     """Returns True if either SMTP or Resend API is configured with real credentials."""
     if settings.RESEND_API_KEY and len(settings.RESEND_API_KEY.strip()) > 5:
         return True
-    if settings.SMTP_HOST and len(settings.SMTP_HOST.strip()) > 3:
-        return True
+    if settings.SMTP_HOST and len(settings.SMTP_HOST.strip()) > 3 and settings.SMTP_HOST not in ("localhost", "127.0.0.1"):
+        if settings.SMTP_USER and len(settings.SMTP_USER.strip()) > 0:
+            return True
     return False
 
 
@@ -25,7 +26,8 @@ def send_verification_email(to_email: str, full_name: str, token: str) -> Tuple[
     Returns (True, None) if sent, or (False, reason) if not sent / not configured.
     """
     subject = "Verify your Decidr account"
-    verify_url = f"http://localhost:3000/verify-email?token={token}&email={to_email}"
+    frontend_origin = "https://decidr-pi.vercel.app" if settings.ENVIRONMENT == "production" else "http://localhost:3000"
+    verify_url = f"{frontend_origin}/verify-email?token={token}&email={to_email}"
 
     text_body = f"""Hello {full_name},
 
@@ -68,7 +70,8 @@ def send_password_reset_email(to_email: str, full_name: str, token: str) -> Tupl
     Returns (True, None) if sent, or (False, reason) if not sent / not configured.
     """
     subject = "Reset your Decidr password"
-    reset_url = f"http://localhost:3000/forgot-password?token={token}&email={to_email}"
+    frontend_origin = "https://decidr-pi.vercel.app" if settings.ENVIRONMENT == "production" else "http://localhost:3000"
+    reset_url = f"{frontend_origin}/forgot-password?token={token}&email={to_email}"
 
     text_body = f"""Hello {full_name},
 

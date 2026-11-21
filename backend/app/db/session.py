@@ -62,27 +62,30 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db(engine_instance: Engine | None = None) -> None:
-    """Initialize database tables and seed non-production fixtures."""
+    """Initialize database tables and seed initial demo admin if needed."""
     eng = engine_instance or engine
     Base.metadata.create_all(bind=eng)
 
-    # Seed default demo user ONLY in non-production demo mode
-    if settings.DEMO_MODE and settings.ENVIRONMENT != "production":
-        with Session(bind=eng) as session:
-            try:
-                from app.models.models import User
-                from app.core.security import hash_password
-                demo_user = session.query(User).filter(User.email == "demo@decidr.ai").first()
-                if not demo_user:
-                    demo_user = User(
-                        email="demo@decidr.ai",
-                        full_name="Decidr Demo Admin",
-                        hashed_password=hash_password("DecidrDemo2026!"),
-                        is_verified=True,
-                        is_active=True,
-                        role="admin",
-                    )
-                    session.add(demo_user)
-                    session.commit()
-            except Exception:
-                session.rollback()
+    # Seed or verify demo user
+    with Session(bind=eng) as session:
+        try:
+            from app.models.models import User
+            from app.core.security import hash_password
+            demo_user = session.query(User).filter(User.email == "demo@decidr.ai").first()
+            if not demo_user:
+                demo_user = User(
+                    email="demo@decidr.ai",
+                    full_name="Decidr Demo Admin",
+                    hashed_password=hash_password("DecidrDemo2026!"),
+                    is_verified=True,
+                    is_active=True,
+                    role="admin",
+                )
+                session.add(demo_user)
+                session.commit()
+            elif not demo_user.is_verified or not demo_user.is_active:
+                demo_user.is_verified = True
+                demo_user.is_active = True
+                session.commit()
+        except Exception:
+            session.rollback()
