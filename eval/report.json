@@ -1,0 +1,259 @@
+{
+  "metadata": {
+    "date": "2026-11-21T16:43:00.750552+00:00",
+    "model": "gemini-1.5-pro",
+    "llm_mode": "live",
+    "git_commit": "165bfb12af179f03f2d1573f7bf611358f09a710",
+    "dataset": "development (M1-M4)",
+    "dataset_is_heldout": false
+  },
+  "decidr": {
+    "name": "Decidr (Proposed Full Platform)",
+    "description": "Two-pass extraction, continuous premise watchdog, graph blast radius BFS, rule-based repair, and human review.",
+    "decisions_pr": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 6,
+      "total_gold": 6
+    },
+    "actions_pr": {
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 7,
+      "total_gold": 7
+    },
+    "premises_pr": {
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 4,
+      "total_gold": 4
+    },
+    "premise_breaks_pr": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "detected": 2,
+      "gold": 2
+    },
+    "conflicts_pr": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "detected": 1,
+      "gold": 1
+    },
+    "impact_pr": {
+      "tp": 4,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.8,
+      "recall": 0.8,
+      "f1": 0.8,
+      "detected_affected": 5,
+      "gold_affected": 5
+    },
+    "repair_correctness": {
+      "correctness": 0.7143,
+      "matched": 5,
+      "total_gold": 7,
+      "total_generated": 17
+    },
+    "writes_without_approval": 0
+  },
+  "b1_baseline": {
+    "name": "B1: Extraction + Task Creation Only",
+    "description": "Naive extraction directly into task issues. No premise tracking, no conflict detection, no repair.",
+    "decisions_pr": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 6,
+      "total_gold": 6
+    },
+    "actions_pr": {
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 7,
+      "total_gold": 7
+    },
+    "premises_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 4
+    },
+    "premise_breaks_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 2
+    },
+    "conflicts_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1
+    },
+    "impact_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 4
+    },
+    "repair_correctness": {
+      "correctness": 0.0,
+      "matched": 0,
+      "total_gold": 4,
+      "total_generated": 0
+    },
+    "writes_without_approval": 0
+  },
+  "b2_baseline": {
+    "name": "B2: Extraction + Pairwise Decision Contradictions Only",
+    "description": "Extracts decisions and detects direct decision-vs-decision contradictions. No premise monitoring or blast radius.",
+    "decisions_pr": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 6,
+      "total_gold": 6
+    },
+    "actions_pr": {
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "total_extracted": 7,
+      "total_gold": 7
+    },
+    "premises_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 4
+    },
+    "premise_breaks_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 2
+    },
+    "conflicts_pr": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "detected": 1,
+      "gold": 1
+    },
+    "impact_pr": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 4
+    },
+    "repair_correctness": {
+      "correctness": 0.0,
+      "matched": 0,
+      "total_gold": 4,
+      "total_generated": 0
+    },
+    "writes_without_approval": 0
+  },
+  "comparison_table": [
+    {
+      "metric": "Decision Extraction (P / R)",
+      "b1": "100.0% / 100.0%",
+      "b2": "100.0% / 100.0%",
+      "decidr": "100.0% / 100.0%"
+    },
+    {
+      "metric": "Action Extraction (P / R)",
+      "b1": "100.0% / 100.0%",
+      "b2": "100.0% / 100.0%",
+      "decidr": "100.0% / 100.0%"
+    },
+    {
+      "metric": "Premise Extraction (P / R)",
+      "b1": "0.0% / 0.0%",
+      "b2": "0.0% / 0.0%",
+      "decidr": "100.0% / 100.0%"
+    },
+    {
+      "metric": "Premise-Break Detection (P / R)",
+      "b1": "0.0% / 0.0%",
+      "b2": "0.0% / 0.0%",
+      "decidr": "100.0% / 100.0%"
+    },
+    {
+      "metric": "Cross-Decision Conflict (P / R)",
+      "b1": "0.0% / 0.0%",
+      "b2": "100.0% / 100.0%",
+      "decidr": "100.0% / 100.0%"
+    },
+    {
+      "metric": "Impact / Affected Tasks (P / R)",
+      "b1": "0.0% / 0.0%",
+      "b2": "0.0% / 0.0%",
+      "decidr": "80.0% / 80.0%"
+    },
+    {
+      "metric": "Repair Plan Correctness",
+      "b1": "0.0%",
+      "b2": "0.0%",
+      "decidr": "71.4%"
+    },
+    {
+      "metric": "Writes Without Approval (Target 0)",
+      "b1": "0",
+      "b2": "0",
+      "decidr": "0"
+    }
+  ]
+}

@@ -1,0 +1,404 @@
+{
+  "project": "Payments Revamp",
+  "meetings": {
+    "M1": {
+      "date": "2026-11-02",
+      "filename": "m1_2026-11-02.vtt",
+      "decisions": [
+        {
+          "id": "D1",
+          "text": "Use Provider A for India settlements",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "scope_release": "v1.0",
+          "effective_from": "2026-11-02",
+          "evidence_quote": "we will use Provider A for India settlements."
+        },
+        {
+          "id": "D2",
+          "text": "Launch India payments on Dec 15",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "scope_release": "v1.0",
+          "effective_from": "2026-12-15",
+          "evidence_quote": "launch India payments on Dec 15"
+        }
+      ],
+      "premises": [
+        {
+          "id": "P1",
+          "decision_id": "D1",
+          "text": "Provider A supports T+0 UPI settlement",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "evidence_quote": "Provider A supports T+0 UPI settlement",
+          "state": "confirmed",
+          "status": "holding"
+        },
+        {
+          "id": "P2",
+          "decision_id": "D1",
+          "text": "Budget of 8 lakh is approved through Q1",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "evidence_quote": "budget of 8 lakh is approved through Q1",
+          "state": "confirmed",
+          "status": "holding"
+        },
+        {
+          "id": "P3",
+          "decision_id": "D2",
+          "text": "Ravi is available full time until Dec 5",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "evidence_quote": "Ravi is available full time until Dec 5",
+          "state": "confirmed",
+          "status": "holding"
+        }
+      ],
+      "actions": [
+        {
+          "id": "T1",
+          "title": "Integrate Provider A SDK",
+          "owner": "Ravi",
+          "deadline": "2026-11-20",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "integrate Provider A SDK by Nov 20",
+          "linked_decision_id": "D1"
+        },
+        {
+          "id": "T2",
+          "title": "Build settlement reconciliation screen",
+          "owner": "Meera",
+          "deadline": null,
+          "needs_owner": false,
+          "needs_deadline": true,
+          "evidence_quote": "build settlement reconciliation screen for merchant ops, though we haven't locked the date yet",
+          "linked_decision_id": "D1"
+        },
+        {
+          "id": "T3",
+          "title": "Write settlement test plan",
+          "owner": null,
+          "deadline": "2026-11-25",
+          "needs_owner": true,
+          "needs_deadline": false,
+          "evidence_quote": "Someone needs to write settlement test plan by Nov 25",
+          "linked_decision_id": "D1"
+        },
+        {
+          "id": "T4",
+          "title": "Finance sign-off on vendor contract",
+          "owner": "Karthik",
+          "deadline": "2026-11-12",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "finance sign-off on vendor contract by Nov 12",
+          "linked_decision_id": "D1"
+        },
+        {
+          "id": "T5",
+          "title": "Evaluate Provider B for Europe",
+          "owner": "Divya",
+          "deadline": "2026-11-30",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "evaluate Provider B for Europe by Nov 30",
+          "linked_decision_id": null
+        },
+        {
+          "id": "T_AMBIGUOUS",
+          "title": "Review the vendor SLA",
+          "owner": null,
+          "deadline": null,
+          "needs_owner": true,
+          "needs_deadline": true,
+          "evidence_quote": "someone should review the vendor SLA",
+          "linked_decision_id": null,
+          "ambiguity_note": "Uncertain whether it links to D1 (Provider A India) or Europe decision"
+        }
+      ],
+      "links": [
+        {
+          "source_id": "T1",
+          "source_type": "task",
+          "target_id": "D1",
+          "target_type": "decision",
+          "relation": "implements",
+          "confirmed": true,
+          "rationale": "Direct SDK integration for Provider A"
+        },
+        {
+          "source_id": "T2",
+          "source_type": "task",
+          "target_id": "D1",
+          "target_type": "decision",
+          "relation": "implements",
+          "confirmed": true,
+          "rationale": "Settlement reconciliation UI for Provider A payouts"
+        },
+        {
+          "source_id": "T3",
+          "source_type": "task",
+          "target_id": "D1",
+          "target_type": "decision",
+          "relation": "implements",
+          "confirmed": true,
+          "rationale": "QA test plan for Provider A settlement flows"
+        },
+        {
+          "source_id": "T4",
+          "source_type": "task",
+          "target_id": "D1",
+          "target_type": "decision",
+          "relation": "depends_on",
+          "confirmed": true,
+          "rationale": "Contractual sign-off authorizing Provider A setup"
+        }
+      ]
+    },
+    "M2": {
+      "date": "2026-11-09",
+      "filename": "m2_2026-11-09.vtt",
+      "decisions": [
+        {
+          "id": "D_EU",
+          "text": "Use Provider B for Europe",
+          "scope_project": "Payments Revamp",
+          "scope_region": "Europe",
+          "evidence_quote": "we will use Provider B for Europe",
+          "conflict_status": "no_conflict",
+          "conflict_rationale": "Same topic (payments) but different region (Europe vs India). Invariant 9."
+        }
+      ],
+      "false_positive_tests": [
+        {
+          "premise_id": "P2",
+          "quote": "8 lakh budget still holds",
+          "verdict": "holding",
+          "rationale": "Karthik confirmed budget still holds. Must NOT raise an alert."
+        }
+      ],
+      "expected_alerts": [
+        {
+          "id": "ALERT-M2-01",
+          "kind": "premise_break",
+          "premise_id": "P1",
+          "decision_id": "D1",
+          "verdict": "broken",
+          "old_quote": "Provider A supports T+0 UPI settlement",
+          "new_quote": "Provider A told me this morning they only support T+2 settlement, not T+0 for merchant payouts",
+          "explanation": "Provider A only supports T+2 settlement for merchant payouts, breaking premise P1 (T+0 settlement) upon which decision D1 depends."
+        }
+      ],
+      "expected_blast_radius": {
+        "affected_tasks": [
+          {
+            "task_id": "T1",
+            "title": "Integrate Provider A SDK",
+            "owner": "Ravi",
+            "reason": "Directly implements D1 which depends on broken premise P1"
+          },
+          {
+            "task_id": "T2",
+            "title": "Build settlement reconciliation screen",
+            "owner": "Meera",
+            "reason": "Directly implements D1; reconciliation logic must change from instant to T+2"
+          },
+          {
+            "task_id": "T3",
+            "title": "Write settlement test plan",
+            "owner": null,
+            "reason": "Directly implements D1; test criteria must reflect settlement latency shift"
+          },
+          {
+            "task_id": "T4",
+            "title": "Finance sign-off on vendor contract",
+            "owner": "Karthik",
+            "reason": "Commercial contract depends on agreed SLA terms"
+          }
+        ],
+        "unaffected_tasks": [
+          {
+            "task_id": "T5",
+            "title": "Evaluate Provider B for Europe",
+            "reason": "Scoped to Europe, entirely independent of India settlement terms"
+          }
+        ]
+      },
+      "expected_repair_actions": [
+        {
+          "action_type": "mark_decision_at_risk",
+          "target_type": "decision",
+          "target_id": "D1",
+          "payload": {"status": "at_risk", "reason": "Underlying premise P1 broken (T+0 -> T+2)"}
+        },
+        {
+          "action_type": "comment_task",
+          "target_type": "task",
+          "target_id": "T1",
+          "payload": {"comment": "Premise Break Alert: Provider A only supports T+2 settlement. Verify webhook idempotency and payout flows."}
+        },
+        {
+          "action_type": "comment_task",
+          "target_type": "task",
+          "target_id": "T2",
+          "payload": {"comment": "Premise Break Alert: Reconciliation UI must account for T+2 pending payout window."}
+        },
+        {
+          "action_type": "pause_reminders",
+          "target_type": "task",
+          "target_id": "T4",
+          "payload": {"pause_reason": "Pending contract SLA clarification on T+2 settlement"}
+        }
+      ]
+    },
+    "M3": {
+      "date": "2026-11-16",
+      "filename": "m3_2026-11-16.vtt",
+      "decisions": [
+        {
+          "id": "D2_REVISED",
+          "text": "Launch India payments on Jan 10",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "supersedes_id": "D2",
+          "evidence_quote": "we are moving the India launch from Dec 15 to Jan 10"
+        },
+        {
+          "id": "D3",
+          "text": "Reconciliation report is part of the launch checklist",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "depends_on_id": "D1",
+          "evidence_quote": "reconciliation report is part of the launch checklist"
+        }
+      ],
+      "actions": [
+        {
+          "id": "T6",
+          "title": "Prepare launch checklist sign-off",
+          "owner": "Meera",
+          "deadline": "2026-12-12",
+          "needs_owner": false,
+          "needs_deadline": false,
+          "evidence_quote": "prepare launch checklist sign-off",
+          "linked_decision_id": "D3",
+          "hops_from_p1": 2,
+          "hop_chain": "T6 -> D3 -> D1 -> P1"
+        }
+      ],
+      "links": [
+        {
+          "source_id": "D3",
+          "source_type": "decision",
+          "target_id": "D1",
+          "target_type": "decision",
+          "relation": "depends_on",
+          "confirmed": true,
+          "rationale": "Reconciliation report is dependent on the primary settlement provider choice"
+        },
+        {
+          "source_id": "T6",
+          "source_type": "task",
+          "target_id": "D3",
+          "target_type": "decision",
+          "relation": "implements",
+          "confirmed": true,
+          "rationale": "Meera prepares checklist for the reconciliation launch gate"
+        }
+      ],
+      "expected_alerts": [
+        {
+          "id": "ALERT-M3-01",
+          "kind": "conflict",
+          "decision_id": "D2",
+          "verdict": "supersedes",
+          "old_quote": "launch India payments on Dec 15",
+          "new_quote": "we are moving the India launch from Dec 15 to Jan 10",
+          "explanation": "Meeting 3 explicitly moves the launch date from Dec 15 to Jan 10, superseding D2."
+        },
+        {
+          "id": "ALERT-M3-02",
+          "kind": "premise_break",
+          "premise_id": "P3",
+          "decision_id": "D2",
+          "verdict": "broken",
+          "old_quote": "Ravi is available full time until Dec 5",
+          "new_quote": "I will be on leave from Dec 1",
+          "explanation": "Ravi announced he will be on leave starting Dec 1, undermining confirmed premise P3."
+        }
+      ],
+      "expected_blast_radius": {
+        "multi_hop_propagation": [
+          {
+            "task_id": "T6",
+            "title": "Prepare launch checklist sign-off",
+            "distance": 2,
+            "chain": "T6 -> D3 -> D1 -> P1",
+            "reason": "T6 implements D3, which depends on D1, which depends on P1. If D1 is at risk or changed, T6 is affected two links away."
+          }
+        ]
+      },
+      "expected_repair_actions": [
+        {
+          "action_type": "mark_decision_at_risk",
+          "target_type": "decision",
+          "target_id": "D2"
+        },
+        {
+          "action_type": "reopen_task",
+          "target_type": "task",
+          "target_id": "T6",
+          "payload": {"reason": "Launch checklist gate requires update for Jan 10 timeline"}
+        }
+      ]
+    },
+    "M4": {
+      "date": "2026-11-23",
+      "filename": "m4_2026-11-23.vtt",
+      "decisions": [
+        {
+          "id": "D4",
+          "text": "Use the Provider A sandbox for integration tests",
+          "scope_project": "Payments Revamp",
+          "scope_region": "India",
+          "evidence_quote": "we will use the Provider A sandbox for integration tests"
+        }
+      ],
+      "premises": [
+        {
+          "id": "P4",
+          "decision_id": "D4",
+          "text": "Sandbox access is valid until Nov 30",
+          "scope_project": "Payments Revamp",
+          "evidence_quote": "sandbox access is valid until Nov 30",
+          "valid_until": "2026-11-30",
+          "state": "confirmed",
+          "status": "holding",
+          "expiry_behavior": "expires_by_date"
+        }
+      ],
+      "expected_alerts": [
+        {
+          "id": "ALERT-M4-01",
+          "kind": "expiry",
+          "premise_id": "P4",
+          "decision_id": "D4",
+          "verdict": "expired",
+          "expiry_date": "2026-11-30",
+          "explanation": "Sandbox access validity token expires on Nov 30; automated expiry alert triggered without contradiction statement."
+        }
+      ],
+      "expected_repair_actions": [
+        {
+          "action_type": "mark_decision_at_risk",
+          "target_type": "decision",
+          "target_id": "D4",
+          "payload": {"reason": "Integration sandbox token expired on 2026-11-30"}
+        }
+      ]
+    }
+  }
+}

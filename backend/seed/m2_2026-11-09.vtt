@@ -1,0 +1,49 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.100
+Asha: Welcome back everyone. Hope everyone had a restful weekend. Can everyone hear me alright?
+
+00:00:05.400 --> 00:00:08.800
+Meera: Loud and clear Asha. My home Wi-Fi was acting up earlier, but it seems stable now.
+
+00:00:09.100 --> 00:00:13.500
+Ravi: Same here. Ready to run through this week's sprint sync and integration blockers.
+
+00:00:13.800 --> 00:00:18.400
+Asha: Perfect. Let's do a quick round on operational updates before we get into the tech details.
+
+00:00:18.700 --> 00:00:23.000
+Karthik: Quick update from finance: by the way, regarding the financial runway, the 8 lakh budget still holds for the quarter, so cash flow isn't an issue right now.
+
+00:00:23.300 --> 00:00:27.500
+Asha: Thanks Karthik, great to know our runway is locked down. Sam, how are vendor comms going?
+
+00:00:27.800 --> 00:00:34.200
+Sam: Well, frankly dealing with their account manager has been a test of patience. Their support portal was throwing 502 errors over the weekend.
+
+00:00:34.500 --> 00:00:43.000
+Sam: I was actually arguing with their technical liaison about API rate limits on Friday, and honestly Provider A told me this morning they only support T+2 settlement, not T+0 for merchant payouts, which is annoying given what they pitched during sales.
+
+00:00:43.300 --> 00:00:48.200
+Meera: Ugh, vendor sales reps will promise anything to close a contract. Hopefully their documentation is at least accurate.
+
+00:00:48.500 --> 00:00:52.900
+Ravi: Yeah, we'll see once we stress-test their webhook delivery queues next week.
+
+00:00:53.200 --> 00:00:58.500
+Asha: Let's shift gears to our European expansion roadmap. Divya, how did your evaluation go?
+
+00:00:58.800 --> 00:01:05.400
+Divya: Their sandbox was super responsive, and their Euro clearing compliance meets all PSD2 requirements out of the box.
+
+00:01:05.700 --> 00:01:13.200
+Asha: Excellent news. So looking at our EU timelines, we will use Provider B for Europe to power our euro-denominated subscriptions.
+
+00:01:13.500 --> 00:01:17.000
+Karthik: Makes total sense. The cross-border FX margins on Provider B are very competitive.
+
+00:01:17.300 --> 00:01:22.000
+Divya: Great, I'll archive the evaluation matrix and share the compliance deck in Slack.
+
+00:01:22.300 --> 00:01:26.800
+Asha: Thanks everyone. Let's keep heads down on the sprint goals and regroup on Thursday.

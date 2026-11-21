@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+*/node_modules/
+frontend/node_modules/
+.venv/
+venv/
+env/
+ENV/
+
+# Build & Next.js
+.next/
+*/.next/
+frontend/.next/
+out/
+build/
+dist/
+.turbo/
+
+# Python cache & artifacts
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database & Cache
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+decidr.db
+backend/decidr.db
+.llm_cache/
+*.log
+
+# Testing & Coverage
+.pytest_cache/
+*/.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS & Editor
+docs/raw_video/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

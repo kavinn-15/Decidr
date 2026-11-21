@@ -1,0 +1,31 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.800
+Asha: Good morning everyone. Today is our focused sync on integration sandbox testing and staging environments.
+
+00:00:05.100 --> 00:00:08.900
+Divya: Perfect timing. QA is ready to push synthetic test transactions through the gateway.
+
+00:00:09.200 --> 00:00:14.000
+Meera: The frontend dashboard mockups are wired up to the staging endpoints, so we just need real payload responses.
+
+00:00:14.300 --> 00:00:21.000
+Asha: Excellent. So to standardize our staging verification, we will use the Provider A sandbox for integration tests across all test runs.
+
+00:00:21.300 --> 00:00:25.500
+Divya: Great, that gives us consistent sandbox webhooks to validate our error boundary handlers.
+
+00:00:25.800 --> 00:00:33.200
+Sam: Just a heads up on credentials: their developer ops team confirmed that sandbox access is valid until Nov 30, so any staging runs after November will need an extended token.
+
+00:00:33.500 --> 00:00:38.800
+Ravi: That gives us one solid week of testing. We should run all load tests before that token expires.
+
+00:00:39.100 --> 00:00:44.000
+Karthik: If we need an extension beyond Nov 30, let me know early so I can approve the additional sandbox seat fee.
+
+00:00:44.300 --> 00:00:48.500
+Sam: Will do Karthik. I'll flag it if the team needs extra time in December.
+
+00:00:48.800 --> 00:00:53.000
+Asha: Sounds like a clear plan. Let's execute these test suites this week and reconvene on Monday.
