@@ -2,12 +2,13 @@ from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, SessionLocal
-from app.models.enums import MeetingStatus
-from app.models.models import Meeting, Utterance, Person
-from app.schemas.schemas import MeetingRead, UtteranceRead
+from app.models.enums import MeetingStatus, ItemType, ReviewState, AlertState
+from app.models.models import Meeting, Utterance, Person, Item, Alert
+from app.schemas.schemas import MeetingRead, UtteranceRead, PersonRead
 from app.services.ingestion import ingest_meeting, patch_meeting_speaker
 from app.services.extraction import extract_meeting_items
 
@@ -22,6 +23,9 @@ class PatchSpeakerRequest(BaseModel):
 class MeetingSummaryRead(MeetingRead):
     utterance_count: int
     unmapped_speakers_count: int
+    pending_review_count: int = 0
+    decisions_count: int = 0
+    actions_count: int = 0
 
 
 class UtteranceDetailRead(UtteranceRead):
@@ -74,7 +78,7 @@ async def create_meeting(
 
 @router.get("", response_model=List[MeetingSummaryRead])
 def list_meetings(db: Session = Depends(get_db)):
-    """List all meetings with utterance counts and unmapped speaker flags."""
+    """List all meetings with utterance counts, unmapped speaker flags, and pending review counts."""
     meetings = db.query(Meeting).order_by(Meeting.date.desc()).all()
     results = []
     for m in meetings:
@@ -82,6 +86,26 @@ def list_meetings(db: Session = Depends(get_db)):
         unmapped_count = (
             db.query(Utterance)
             .filter(Utterance.meeting_id == m.id, Utterance.person_id.is_(None))
+            .count()
+        )
+        proposed_items = (
+            db.query(Item)
+            .filter(Item.meeting_id == m.id, Item.review_state == ReviewState.proposed)
+            .count()
+        )
+        open_alerts = (
+            db.query(Alert)
+            .filter(Alert.meeting_id == m.id, Alert.state == AlertState.open)
+            .count()
+        )
+        dec_count = (
+            db.query(Item)
+            .filter(Item.meeting_id == m.id, Item.type == ItemType.decision)
+            .count()
+        )
+        act_count = (
+            db.query(Item)
+            .filter(Item.meeting_id == m.id, Item.type == ItemType.action)
             .count()
         )
         results.append(
@@ -97,9 +121,30 @@ def list_meetings(db: Session = Depends(get_db)):
                 error=m.error,
                 utterance_count=utt_count,
                 unmapped_speakers_count=unmapped_count,
+                pending_review_count=proposed_items + open_alerts,
+                decisions_count=dec_count,
+                actions_count=act_count,
             )
         )
     return results
+
+
+@router.get("/roster/people", response_model=List[PersonRead])
+def get_roster_people(db: Session = Depends(get_db)):
+    """Get all roster people for speaker or owner assignment."""
+    return db.query(Person).order_by(Person.name.asc()).all()
+
+
+@router.get("/{meeting_id}/unmapped-speakers")
+def get_meeting_unmapped_speakers(meeting_id: int, db: Session = Depends(get_db)):
+    """Get list of distinct unmapped speakers in this meeting with utterance counts."""
+    rows = (
+        db.query(Utterance.speaker_raw, func.count(Utterance.id))
+        .filter(Utterance.meeting_id == meeting_id, Utterance.person_id.is_(None))
+        .group_by(Utterance.speaker_raw)
+        .all()
+    )
+    return [{"speaker_raw": r[0], "count": r[1]} for r in rows]
 
 
 @router.get("/{meeting_id}", response_model=MeetingRead)

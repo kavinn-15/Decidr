@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import init_db
 from app.api.routes.meetings import router as meetings_router
 from app.api.routes.trackers import router as trackers_router
 from app.api.routes.review import router as review_router
+from app.api.routes.audit import router as audit_router
 
 
 @asynccontextmanager
@@ -34,8 +35,32 @@ app.add_middleware(
 app.include_router(meetings_router)
 app.include_router(trackers_router)
 app.include_router(review_router)
+app.include_router(audit_router)
 
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/config")
+def get_config():
+    """Returns application configuration flags for frontend UI adaptivity."""
+    return {
+        "demo_mode": settings.DEMO_MODE,
+        "llm_provider": settings.LLM_PROVIDER,
+        "tracker": settings.TRACKER,
+    }
+
+
+@app.post("/demo/reset")
+def reset_demo_database():
+    """Resets and reseeds demo database (allowed only when DEMO_MODE=True)."""
+    if not settings.DEMO_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Resetting demo data is disabled because DEMO_MODE is false.",
+        )
+    from scripts.seed import seed_database
+    seed_database()
+    return {"status": "ok", "message": "Demo data reset successfully"}

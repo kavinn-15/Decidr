@@ -302,3 +302,60 @@ npm --prefix frontend run build
 
 ### Open Issues / Deferred
 - Premise break and cross-meeting conflict detection algorithms to be built in subsequent tasks.
+
+---
+
+## Task 8: Meetings Dashboard & Audit Log Screen
+### What Was Built
+- **Meetings Dashboard (`/`)**:
+  - **Meetings Table**: Lists meetings with title, date, project, region/release badges, status badge (`uploaded`, `processing`, `review`, `done`, `failed`), and real-time counts of cards pending review.
+  - **Upload Modal**: File picker supporting `.vtt`, `.srt`, `.txt`, `.json`, along with title, meeting date (SSR-safe initial state), project, optional region and release fields.
+  - **Background Processing & Polling**: Polling interval (2s) automatically activates when meetings are in `uploaded` or `processing` status. "Process" button kicks off two-pass extraction on uploaded transcripts.
+  - **Speaker Mapping Dialog**: Detects unmapped transcript speakers and enables reviewers to map them to roster members across the meeting via `PATCH /meetings/{id}/speakers`.
+  - **Error Recovery**: Failed meetings render detailed error messages with an instant "Retry" action.
+  - **Demo Mode Reset**: When `DEMO_MODE=True`, displays "Reset Demo Data" action that reloads seed transcripts, roster, and baseline entities.
+  - **States**: Responsive loading skeletons, empty state with upload prompt, and operational toast notifications.
+
+- **Audit Log Viewer (`/audit`)**:
+  - **Strictly Read-Only (Invariant 7)**: No edit or delete capabilities anywhere. Database-level ORM listeners block updates and deletions (`ReadOnlyAuditLogError`).
+  - **Newest-First Table**: Real-time listing of audit records with timestamp, actor, action, entity type, and entity ID.
+  - **Filter Toolbar**: Dynamic dropdown filters for Actor, Action, and Entity Type populated from `GET /audit/filters`.
+  - **Expandable Before/After State Inspector**: Drawer/modal displaying formatted side-by-side JSON diffs of entity state changes.
+  - **CSV Export**: Direct one-click download of the complete audit log via `GET /audit/export`.
+
+- **Backend Endpoints (`backend/app/api/routes/audit.py` & `meetings.py`)**:
+  - `GET /audit`: Newest-first paginated and filtered audit log entries.
+  - `GET /audit/filters`: Distinct actors, actions, and entity types.
+  - `GET /audit/export`: Formatted CSV stream with `Content-Disposition`.
+  - `GET /meetings`: Enriched with `pending_review_count`, `decisions_count`, `actions_count`.
+  - `GET /meetings/{id}/unmapped-speakers`: Returns unique unmapped speakers.
+  - `GET /meetings/roster/people`: Returns roster for frontend mapping selector.
+  - `GET /config`: Exposes application configuration flags (`demo_mode`).
+  - `POST /demo/reset`: Reseeds database from `backend/seed/` when `DEMO_MODE=True`.
+
+- **Unit & Integration Tests (`backend/tests/test_audit_api.py`)**:
+  - `test_audit_list_newest_first`: Verifies newest-first ordering and limit.
+  - `test_audit_filter_by_actor_and_action`: Verifies filtering by actor and action.
+  - `test_audit_csv_export`: Verifies CSV format, headers, and rows.
+  - `test_meetings_summary_includes_counts`: Verifies pending review, decision, and action counts.
+  - `test_unmapped_speakers_endpoint`: Verifies detection of unmapped speakers.
+  - `test_config_and_demo_reset`: Verifies demo reset endpoint and authorization under demo mode.
+  - Full suite passes: **42/42 tests passing**.
+  - Production frontend build passes: **7/7 routes prerendered without errors**.
+
+### How to Run
+```bash
+# Run backend tests including audit & dashboard endpoints
+.venv\Scripts\pytest.exe backend\tests -v
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+
+### Assumptions Made
+- In `frontend/app/page.tsx`, meeting date defaults to a static ISO string (`2026-11-21`) to prevent Next.js 16 SSR/hydration mismatches during static generation.
+- Polling in the dashboard runs only while active meetings are in `uploaded` or `processing` state, conserving client/server resources.
+
+### Open Issues / Deferred
+- None from Task 8.
+

@@ -12,8 +12,13 @@ export interface MeetingSummary {
   region?: string | null;
   release?: string | null;
   status: string;
+  transcript_ref?: string | null;
+  error?: string | null;
   utterance_count?: number;
   unmapped_speakers_count?: number;
+  pending_review_count?: number;
+  decisions_count?: number;
+  actions_count?: number;
 }
 
 export interface UtteranceItem {
@@ -305,4 +310,116 @@ export async function dismissAlert(alertId: number, actor: string = "reviewer") 
     method: "POST",
     body: JSON.stringify({ actor }),
   });
+}
+
+export interface AuditLogItem {
+  id: number;
+  actor: string;
+  action: string;
+  entity_type: string;
+  entity_id: number;
+  before?: Record<string, any> | null;
+  after?: Record<string, any> | null;
+  created_at: string;
+}
+
+export interface AuditListResponse {
+  total: number;
+  items: AuditLogItem[];
+}
+
+export interface AuditFilters {
+  actors: string[];
+  actions: string[];
+  entity_types: string[];
+}
+
+export interface ConfigResponse {
+  demo_mode: boolean;
+  llm_provider: string;
+  tracker: string;
+}
+
+export interface UnmappedSpeakerItem {
+  speaker_raw: string;
+  count: number;
+}
+
+export async function uploadMeeting(formData: FormData): Promise<MeetingSummary> {
+  const res = await fetch(`${API_BASE}/meetings`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    let err = res.statusText;
+    try {
+      const j = await res.json();
+      err = j.detail || JSON.stringify(j);
+    } catch {}
+    throw new Error(err);
+  }
+  return res.json();
+}
+
+export async function processMeeting(meetingId: number) {
+  return apiRequest(`/meetings/${meetingId}/process`, {
+    method: "POST",
+  });
+}
+
+export async function fetchUnmappedSpeakers(meetingId: number): Promise<UnmappedSpeakerItem[]> {
+  return apiRequest<UnmappedSpeakerItem[]>(`/meetings/${meetingId}/unmapped-speakers`);
+}
+
+export async function patchSpeaker(meetingId: number, speaker_raw: string, person_id: number) {
+  return apiRequest(`/meetings/${meetingId}/speakers`, {
+    method: "PATCH",
+    body: JSON.stringify({ speaker_raw, person_id }),
+  });
+}
+
+export async function fetchRoster(): Promise<PersonItem[]> {
+  return apiRequest<PersonItem[]>("/meetings/roster/people");
+}
+
+export async function fetchConfig(): Promise<ConfigResponse> {
+  return apiRequest<ConfigResponse>("/config");
+}
+
+export async function resetDemoData() {
+  return apiRequest("/demo/reset", {
+    method: "POST",
+  });
+}
+
+export async function fetchAuditLogs(params?: {
+  actor?: string;
+  action?: string;
+  entity_type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditListResponse> {
+  const q = new URLSearchParams();
+  if (params?.actor) q.set("actor", params.actor);
+  if (params?.action) q.set("action", params.action);
+  if (params?.entity_type) q.set("entity_type", params.entity_type);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiRequest<AuditListResponse>(`/audit?${q.toString()}`);
+}
+
+export async function fetchAuditFilters(): Promise<AuditFilters> {
+  return apiRequest<AuditFilters>("/audit/filters");
+}
+
+export function getAuditExportUrl(params?: {
+  actor?: string;
+  action?: string;
+  entity_type?: string;
+}): string {
+  const q = new URLSearchParams();
+  if (params?.actor) q.set("actor", params.actor);
+  if (params?.action) q.set("action", params.action);
+  if (params?.entity_type) q.set("entity_type", params.entity_type);
+  return `${API_BASE}/audit/export?${q.toString()}`;
 }
