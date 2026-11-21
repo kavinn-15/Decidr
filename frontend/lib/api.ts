@@ -437,6 +437,12 @@ export interface DecisionPremiseItem {
   text: string;
   evidence_quote?: string;
   utterance_id?: number | null;
+  utterance_idx?: number | null;
+  speaker_name?: string | null;
+  utterance_text?: string | null;
+  meeting_id?: number | null;
+  meeting_title?: string | null;
+  meeting_date?: string | null;
   scope_project?: string;
   scope_region?: string | null;
   valid_from?: string | null;
@@ -476,6 +482,7 @@ export interface DecisionLinkedTask {
   status: "open" | "at_risk" | "done" | "cancelled";
   tracker_ref?: string | null;
   tracker_url?: string | null;
+  link_confirmed?: boolean;
 }
 
 export interface DecisionVersionItem {
@@ -491,8 +498,10 @@ export interface DecisionTimelineItem {
   created_at?: string | null;
   actor: string;
   action: string;
-  entity_type: string;
-  entity_id: number;
+  entity_type?: string;
+  entity_id?: number;
+  status?: string | null;
+  cause?: string | null;
   before?: Record<string, any> | null;
   after?: Record<string, any> | null;
 }
@@ -501,6 +510,9 @@ export interface DecisionDetailResponse {
   decision: {
     id: number;
     item_id: number;
+    meeting_id?: number | null;
+    meeting_title?: string | null;
+    meeting_date?: string | null;
     text: string;
     scope_project: string;
     scope_region?: string | null;

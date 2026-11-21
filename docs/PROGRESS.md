@@ -787,3 +787,56 @@ npm --prefix frontend run build
 3. **Invariant 3 (Idempotent execution)**: `run_reminders` runs idempotently with 0 duplicate sends.
 4. **Invariant 4 (Unconfirmed premises never treated as fact)**: Only confirmed premises impact holding status; broken/shaky premises surface warnings.
 5. **Invariant 10 (Strict personal isolation)**: Digest never lists tasks belonging to teammates.
+
+---
+
+## Task 15: Decision Ledger & Detail Drawer UI (`/ledger`)
+### What Was Built
+- **Backend API Enhancements (`backend/app/api/routes/decisions.py`)**:
+  - `GET /decisions/{id}`:
+    - Enriched decision details with source meeting context (`meeting_id`, `meeting_title`, `meeting_date`).
+    - Enriched premise records with speaker info, utterance index, text, and meeting context (`meeting_id`, `meeting_title`, `meeting_date`).
+    - Enriched linked tasks with link confirmation verification (`link_confirmed: bool`), accurately reflecting confirmed graph links vs. provisional/unconfirmed links.
+    - Enriched status timeline built from `audit_log`: automatically constructs status progression (`active` > `at_risk` > `superseded`), attaching human-readable transition causes (e.g. initial meeting approval, premise break repair execution, or conflict supersession) and timestamps.
+- **TypeScript API Client (`frontend/lib/api.ts`)**:
+  - Enriched interfaces: `DecisionPremiseItem`, `DecisionLinkedTask` (added `link_confirmed`), `DecisionTimelineItem` (added `cause`, `status`), and `DecisionDetailResponse`.
+- **Frontend Decision Ledger Screen (`frontend/app/ledger/page.tsx`)**:
+  - **Search & Filters**:
+    - Real-time text search via BM25 ranking (`GET /decisions?text=...`).
+    - Dropdown filters for Status (`all`, `active`, `at_risk`, `superseded`), Project (dynamically populated), and Region (dynamically populated).
+    - Summary counter badges for Total, Active, At Risk, and Superseded decisions.
+  - **Decision Table**:
+    - Interactive table with Decision text, scope badges (Project, Region, Release), status badge (`active`, `at_risk`, `superseded`), effective dates, premises count with status indicator dots, version number, and BM25 relevance score when searching.
+    - Hover effects and row-click selection to open the detail drawer.
+  - **Slide-over Detail Drawer**:
+    - **Interactive Knowledge Graph (`premises > decision > tasks`)**:
+      - Left column: Stack of premise nodes colored by status (`holding`, `shaky`, `broken`, `expired`).
+      - Center node: Decision card with version and status.
+      - Right column: Stack of linked tasks with status and link confirmation badges (solid border for confirmed, dashed for provisional).
+      - Visual flow indicators: `supports →` and `→ justifies`.
+    - **Decision Overview**: Text, scope, effective period, and source meeting link.
+    - **Status Timeline**: Vertical timeline built from `audit_log` tracking date, actor, and the human-readable cause of each change.
+    - **Premises Section**:
+      - Status-colored chips (`holding` green, `shaky` amber, `broken` red, `expired` purple).
+      - Source quote citation box with quote icon.
+      - Clicking quote opens the **Transcript Quote Inspector Modal**.
+    - **Transcript Quote Inspector Modal**:
+      - Fetches meeting utterances and renders the dialogue window around the cited statement.
+      - Highlights the exact utterance and verified quote.
+      - Provides direct link to open the meeting in `/review`.
+    - **Version History**: Chronological listing of decision versions, changelogs, and authors.
+    - **Linked Tasks**: Tasks displaying status, assignee, deadline, estimate hours, tracker ticket badge (`MOCK-T1`), and confirmed vs. provisional link status.
+  - **Loading, Empty, and Error States**:
+    - Table and drawer loading skeletons.
+    - Helpful empty state when no decisions match filter queries, with a "Clear filters" action.
+    - Error state banner with retry button.
+
+### How to Run
+```bash
+# Run backend test suite
+.\.venv\Scripts\pytest
+
+# Run frontend production build
+npm --prefix frontend run build
+```
+

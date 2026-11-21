@@ -92,9 +92,10 @@ def get_decision_detail(
     decision = (
         db.query(Decision)
         .options(
-            selectinload(Decision.premises),
+            selectinload(Decision.premises).selectinload(Premise.utterance),
             selectinload(Decision.versions),
             selectinload(Decision.tasks),
+            selectinload(Decision.item),
         )
         .filter(Decision.id == id)
         .first()
@@ -102,13 +103,23 @@ def get_decision_detail(
     if not decision:
         raise HTTPException(status_code=404, detail="Decision not found")
 
+    meeting = decision.item.meeting if (decision.item and decision.item.meeting) else None
+
     # 1. Premises with status
-    premises_data = [
-        {
+    premises_data = []
+    for p in decision.premises:
+        p_meeting = p.utterance.meeting if (p.utterance and p.utterance.meeting) else meeting
+        premises_data.append({
             "id": p.id,
             "text": p.text,
             "evidence_quote": p.evidence_quote,
             "utterance_id": p.utterance_id,
+            "utterance_idx": p.utterance.idx if p.utterance else None,
+            "speaker_name": p.utterance.speaker_name if p.utterance else None,
+            "utterance_text": p.utterance.text if p.utterance else None,
+            "meeting_id": p_meeting.id if p_meeting else None,
+            "meeting_title": p_meeting.title if p_meeting else None,
+            "meeting_date": p_meeting.date.isoformat() if (p_meeting and p_meeting.date) else None,
             "scope_project": p.scope_project,
             "scope_region": p.scope_region,
             "valid_from": p.valid_from.isoformat() if p.valid_from else None,
@@ -116,25 +127,36 @@ def get_decision_detail(
             "state": p.state.value,
             "status": p.status.value,
             "confirmed_by": p.confirmed_by,
-        }
-        for p in decision.premises
-    ]
+        })
 
-    # 2. Linked tasks (direct task.decision_id + confirmed graph neighbors)
+    # 2. Linked tasks (direct task.decision_id + graph links)
     task_map: Dict[int, Task] = {}
     for t in decision.tasks:
         task_map[t.id] = t
 
-    # Invariant 4: Graph queries must ignore unconfirmed links by default (confirmed_only=True)
-    graph_neighbors = neighbors(db, ("decision", decision.id), confirmed_only=True)
-    for n in graph_neighbors:
-        if n["node_type"] == "task" and n["node_id"] not in task_map:
-            t_obj = db.get(Task, n["node_id"])
+    # Find link rows connecting tasks to this decision
+    links = (
+        db.query(Link)
+        .filter(
+            Link.target_type == "decision",
+            Link.target_id == decision.id,
+            Link.source_type == "task",
+        )
+        .all()
+    )
+    link_confirmations = {l.source_id: l.confirmed for l in links}
+
+    # Also include tasks linked via Link table
+    for l in links:
+        if l.source_id not in task_map:
+            t_obj = db.get(Task, l.source_id)
             if t_obj:
                 task_map[t_obj.id] = t_obj
 
-    tasks_data = [
-        {
+    tasks_data = []
+    for t in task_map.values():
+        is_confirmed = link_confirmations.get(t.id, not t.provisional)
+        tasks_data.append({
             "id": t.id,
             "item_id": t.item_id,
             "title": t.title,
@@ -147,9 +169,8 @@ def get_decision_detail(
             "status": t.status.value,
             "tracker_ref": t.tracker_ref,
             "tracker_url": t.tracker_url,
-        }
-        for t in task_map.values()
-    ]
+            "link_confirmed": is_confirmed,
+        })
 
     # 3. Version history
     versions_data = [
@@ -163,37 +184,99 @@ def get_decision_detail(
         for v in sorted(decision.versions, key=lambda x: x.version)
     ]
 
-    # 4. Status timeline from audit_log
+    # 4. Status timeline from audit_log with human-readable causes
     audit_entries = (
         db.query(AuditLog)
         .filter(
             or_(
                 (AuditLog.entity_type == "decision") & (AuditLog.entity_id == decision.id),
                 (AuditLog.entity_type == "decision_version") & (AuditLog.entity_id == decision.id),
+                (AuditLog.entity_type == "item") & (AuditLog.entity_id == decision.item_id),
             )
         )
         .order_by(AuditLog.id.asc())
         .all()
     )
 
-    status_timeline = [
-        {
+    status_timeline = []
+    has_creation_log = any(
+        e.action in ("approve_decision", "create_decision", "create_item") for e in audit_entries
+    )
+    if not has_creation_log:
+        status_timeline.append({
+            "id": 0,
+            "created_at": (
+                datetime.combine(decision.effective_from, datetime.min.time(), tzinfo=timezone.utc)
+                if decision.effective_from
+                else datetime.now(timezone.utc)
+            ).isoformat(),
+            "actor": "reviewer",
+            "action": "approve_decision",
+            "status": "active",
+            "cause": "Approved during meeting review (Initial decision adoption)",
+            "before": None,
+            "after": {"status": "active", "version": 1},
+        })
+
+    for entry in audit_entries:
+        cause = None
+        status_val = None
+        if entry.after and isinstance(entry.after, dict):
+            status_val = entry.after.get("status") or entry.after.get("review_state")
+            cause = entry.after.get("cause") or entry.after.get("reason")
+
+        if not cause:
+            if "approve_decision" in entry.action or "approve" in entry.action:
+                cause = "Approved during meeting review"
+                status_val = status_val or "active"
+            elif "mark_decision_at_risk" in entry.action or "at_risk" in entry.action:
+                cause = "Underlying premise broken; repair action marked decision at risk"
+                status_val = status_val or "at_risk"
+            elif "supersede" in entry.action:
+                cause = "Superseded by a newer conflicting decision"
+                status_val = status_val or "superseded"
+            elif "edit" in entry.action:
+                cause = "Decision text or scope updated"
+            else:
+                cause = f"Action: {entry.action}"
+
+        status_timeline.append({
             "id": entry.id,
             "created_at": entry.created_at.isoformat() if entry.created_at else None,
             "actor": entry.actor,
             "action": entry.action,
-            "entity_type": entry.entity_type,
-            "entity_id": entry.entity_id,
+            "status": status_val or decision.status.value,
+            "cause": cause,
             "before": entry.before,
             "after": entry.after,
-        }
-        for entry in audit_entries
-    ]
+        })
+
+    # If current status is at_risk or superseded but not recorded in timeline, append current state
+    has_current_status = any(e.get("status") == decision.status.value for e in status_timeline)
+    if not has_current_status and decision.status != DecisionStatus.active:
+        cause = (
+            "Marked at risk due to premise break"
+            if decision.status == DecisionStatus.at_risk
+            else "Superseded by newer decision"
+        )
+        status_timeline.append({
+            "id": 999999,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "actor": "system",
+            "action": f"mark_{decision.status.value}",
+            "status": decision.status.value,
+            "cause": cause,
+            "before": {"status": "active"},
+            "after": {"status": decision.status.value},
+        })
 
     return {
         "decision": {
             "id": decision.id,
             "item_id": decision.item_id,
+            "meeting_id": meeting.id if meeting else None,
+            "meeting_title": meeting.title if meeting else None,
+            "meeting_date": meeting.date.isoformat() if (meeting and meeting.date) else None,
             "text": decision.text,
             "scope_project": decision.scope_project,
             "scope_region": decision.scope_region,
